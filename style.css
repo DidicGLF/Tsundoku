@@ -237,7 +237,7 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
 }
 .author-card:hover { border-color: var(--brass); }
 .author-card .ac-cover { width: 54px; height: 80px; flex: none; border-radius: 2px; overflow: hidden; box-shadow: var(--shadow-1); background: var(--paper); }
-.author-card .ac-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.author-card .ac-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .author-card .ac-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .author-card .ac-name { font-family: "Newsreader", serif; font-size: 16.5px; font-weight: 600; line-height: 1.25; }
 .stat-line { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-soft); }
@@ -368,7 +368,7 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
   position: relative; aspect-ratio: 2 / 3; border-radius: 2px; overflow: hidden; box-shadow: var(--shadow-1);
   margin-bottom: 8px; background: var(--paper-raised);
 }
-.card-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.card-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .card:hover .card-cover { box-shadow: 0 2px 4px rgba(20, 14, 8, .14), 0 10px 22px rgba(20, 14, 8, .16); }
 .ribbon {
   position: absolute; top: 0; right: 10px; width: 16px; height: 26px; background: var(--brass);
@@ -409,7 +409,7 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
 }
 .detail-top { position: relative; }
 .detail-cover { width: 100%; aspect-ratio: 2 / 3; max-height: 280px; overflow: hidden; background: var(--paper); }
-.detail-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.detail-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .detail-close {
   position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%;
   border: none; background: rgba(20, 14, 8, .55); color: #F5F2E8; font-size: 15px; display: grid; place-items: center;
