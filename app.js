@@ -266,7 +266,43 @@
       node.querySelector(".f-review").value = book.review || "";
       setStars(node.querySelector(".stars"), book.rating);
       updateBadges(node, book);
+      renderSynopsis(node.querySelector(".synopsis"), book);
       list.appendChild(node);
+      row.addEventListener("toggle", () => {
+        if (row.open && book.synopsis === undefined) loadSynopsis(book, row);
+      });
+    }
+  }
+
+  function renderSynopsis(el, book) {
+    if (book.synopsis === undefined) {
+      el.textContent = "";
+      el.className = "synopsis";
+    } else if (book.synopsis === "") {
+      el.textContent = "";
+      el.className = "synopsis empty";
+    } else {
+      el.textContent = book.synopsis;
+      el.className = "synopsis";
+    }
+  }
+
+  async function loadSynopsis(book, row) {
+    const el = row.querySelector(".synopsis");
+    el.textContent = "";
+    el.className = "synopsis loading";
+    try {
+      const res = await fetch(`https://openlibrary.org${book.key}.json`);
+      if (!res.ok) throw new Error("Résumé indisponible");
+      const json = await res.json();
+      const desc = json.description;
+      book.synopsis = typeof desc === "string" ? desc : desc && desc.value ? desc.value : "";
+      saveData();
+      renderSynopsis(el, book);
+    } catch (err) {
+      console.error(err);
+      el.textContent = "Résumé indisponible (hors ligne ?)";
+      el.className = "synopsis";
     }
   }
 

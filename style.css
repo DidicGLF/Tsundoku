@@ -332,6 +332,21 @@ button { font-family: inherit; }
   gap: 12px;
 }
 
+.synopsis {
+  margin: 4px 0 2px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.synopsis.loading::before {
+  content: "Chargement du résumé…";
+  font-style: italic;
+}
+.synopsis.empty::before {
+  content: "Pas de résumé disponible.";
+  font-style: italic;
+}
+
 .field {
   display: flex;
   align-items: center;
