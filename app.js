@@ -261,6 +261,8 @@
 
   // ---------- Home view ----------
 
+  let onlyMissingHome = false;
+
   function renderHomeView() {
     currentAuthorKey = null;
     const authors = Object.values(data.authors).sort((a, b) =>
@@ -278,6 +280,16 @@
       return;
     }
 
+    const rail = document.createElement("div");
+    rail.className = "rail";
+    rail.innerHTML = `<button type="button" class="chip${onlyMissingHome ? " active" : ""}" id="only-missing-chip">Afficher seulement ce qu'il me manque</button>`;
+    rail.querySelector("#only-missing-chip").addEventListener("click", (e) => {
+      onlyMissingHome = !onlyMissingHome;
+      e.currentTarget.classList.toggle("active", onlyMissingHome);
+      renderHomeView();
+    });
+    app.appendChild(rail);
+
     for (const author of authors) app.appendChild(buildLibrarySection(author));
 
     const addBtn = document.createElement("button");
@@ -286,6 +298,21 @@
     addBtn.innerHTML = '<span class="ghost-plus">+</span>Rechercher un nouvel auteur';
     addBtn.addEventListener("click", () => searchInput.focus());
     app.appendChild(addBtn);
+
+    // Silently check for new releases from authors we haven't checked
+    // recently, and drop them into the page without disturbing the reader.
+    for (const author of authors) {
+      if (!isStale(author)) continue;
+      mergeAuthorWorks(author)
+        .then((added) => {
+          if (added > 0 && currentRoute().view === "home") {
+            const old = document.querySelector(`.library-section[data-author="${author.key}"]`);
+            if (old) old.replaceWith(buildLibrarySection(author));
+            toast(`${added} nouveau(x) roman(s) détecté(s) pour ${author.name}`);
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   function buildLibrarySection(author) {
@@ -293,6 +320,7 @@
 
     const section = document.createElement("section");
     section.className = "library-section";
+    section.dataset.author = author.key;
 
     const head = document.createElement("div");
     head.className = "library-section-head";
@@ -310,11 +338,15 @@
     head.appendChild(statsWrap);
     section.appendChild(head);
 
-    const books = sortBooksByYear(Object.values(author.books || {}));
+    let books = sortBooksByYear(Object.values(author.books || {}));
+    if (onlyMissingHome) books = books.filter((b) => !b.owned);
+
     if (books.length === 0) {
       const empty = document.createElement("div");
       empty.className = "empty-state";
-      empty.innerHTML = "<p>Aucun roman trouvé pour cet auteur.</p>";
+      empty.innerHTML = onlyMissingHome && stats.total > 0
+        ? "<p>Vous possédez déjà tous les romans suivis de cet auteur 🎉</p>"
+        : "<p>Aucun roman trouvé pour cet auteur.</p>";
       section.appendChild(empty);
     } else {
       const grid = document.createElement("div");
@@ -407,6 +439,7 @@
             <button type="button" class="active" data-group="none">Grille</button>
             <button type="button" data-group="series">Série</button>
             <button type="button" data-group="status">Statut</button>
+            <button type="button" data-group="possession">Possession</button>
           </div>
         </div>
         <div class="rail-group">
@@ -450,6 +483,17 @@
       withinQuery = e.target.value;
       renderBookArea(author);
     });
+
+    if (isStale(author)) {
+      mergeAuthorWorks(author)
+        .then((added) => {
+          if (added > 0 && currentAuthorKey === authorKey) {
+            renderBookArea(author);
+            toast(`${added} nouveau(x) roman(s) détecté(s)`);
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   function filteredSortedBooks(author) {
@@ -495,8 +539,18 @@
       return;
     }
 
-    const keyFn = groupMode === "series" ? (b) => (b.series || "").trim() || "Sans série" : (b) => STATUS_LABELS[b.status];
-    const order = groupMode === "status" ? ["À lire", "En cours", "Terminé"] : null;
+    const keyFn =
+      groupMode === "series"
+        ? (b) => (b.series || "").trim() || "Sans série"
+        : groupMode === "possession"
+        ? (b) => (b.owned ? "Possédés" : "Pas encore possédés")
+        : (b) => STATUS_LABELS[b.status];
+    const order =
+      groupMode === "status"
+        ? ["À lire", "En cours", "Terminé"]
+        : groupMode === "possession"
+        ? ["Possédés", "Pas encore possédés"]
+        : null;
     const groups = new Map();
     for (const b of books) {
       const k = keyFn(b);
@@ -542,23 +596,40 @@
     return btn;
   }
 
+  // How long a author's list is trusted before we silently re-check Open
+  // Library for new releases (see renderHomeView / renderAuthorView).
+  const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+  function isStale(author) {
+    if (!author.lastChecked) return true;
+    return Date.now() - new Date(author.lastChecked).getTime() > REFRESH_INTERVAL_MS;
+  }
+
+  // An author can have several OL ids (Open Library sometimes splits one
+  // real author into multiple records) — check all of them and merge in
+  // anything new. Shared by the manual "Actualiser" button and the silent
+  // background check.
+  async function mergeAuthorWorks(author) {
+    const results = await Promise.all(author.olKeys.map((k) => fetchAuthorWorks(k).catch(() => [])));
+    let added = 0;
+    for (const works of results) {
+      for (const w of works) {
+        if (!author.books[w.key]) {
+          author.books[w.key] = newBookEntry(w);
+          added++;
+        }
+      }
+    }
+    author.lastChecked = new Date().toISOString();
+    saveData();
+    return added;
+  }
+
   function refreshAuthorWorks(authorKey) {
     const author = data.authors[authorKey];
     toast("Actualisation…");
-    // An author can have several OL ids (Open Library sometimes splits one
-    // real author into multiple records) — refresh all of them.
-    Promise.all(author.olKeys.map((k) => fetchAuthorWorks(k).catch(() => [])))
-      .then((results) => {
-        let added = 0;
-        for (const works of results) {
-          for (const w of works) {
-            if (!author.books[w.key]) {
-              author.books[w.key] = newBookEntry(w);
-              added++;
-            }
-          }
-        }
-        saveData();
+    mergeAuthorWorks(author)
+      .then((added) => {
         renderBookArea(author);
         toast(added ? `${added} nouveau(x) roman(s) ajouté(s)` : "Aucun nouveau roman");
       })
@@ -617,7 +688,8 @@
     document.querySelectorAll(".stamp-btn").forEach((s) => s.classList.toggle("active", s.dataset.status === book.status));
     document.querySelectorAll("#detail-stars button").forEach((s) => s.classList.toggle("on", Number(s.dataset.value) <= (book.rating || 0)));
     renderSynopsis(document.getElementById("detail-synopsis"), book);
-    if (book.synopsis === undefined) loadBookDetails(book, data.authors[authorKey].name);
+    renderIsbn(book);
+    if (book.synopsis === undefined || book.isbn === undefined) loadBookDetails(book, data.authors[authorKey].name);
 
     detailPanel.classList.add("open");
     detailPanel.setAttribute("aria-hidden", "false");
@@ -657,6 +729,17 @@
     }
   }
 
+  function renderIsbn(book) {
+    const row = document.getElementById("detail-isbn-row");
+    const span = document.getElementById("detail-isbn");
+    if (book.isbn) {
+      span.textContent = book.isbn;
+      row.hidden = false;
+    } else {
+      row.hidden = true;
+    }
+  }
+
   async function loadBookDetails(book, authorName) {
     const synEl = document.getElementById("detail-synopsis");
     synEl.textContent = "";
@@ -669,7 +752,13 @@
       console.warn("Google Books indisponible", err);
     }
 
-    const apply = () => {
+    if (gb && gb.industryIdentifiers) {
+      const isbn13 = gb.industryIdentifiers.find((i) => i.type === "ISBN_13");
+      const isbn10 = gb.industryIdentifiers.find((i) => i.type === "ISBN_10");
+      if (isbn13 || isbn10) book.isbn = (isbn13 || isbn10).identifier;
+    }
+
+    const applyTitleAndSynopsis = () => {
       if (gb && gb.title && normalizeTitle(gb.title) !== normalizeTitle(book.title)) {
         book.titleFr = gb.title;
         if (detailBookKey === book.key) {
@@ -678,30 +767,47 @@
           renderTitleHint(document.getElementById("detail-original"), book);
         }
       }
-      saveData();
       if (detailBookKey === book.key) renderSynopsis(synEl, book);
     };
 
     if (gb && gb.description) {
       book.synopsis = gb.description;
-      apply();
-      return;
-    }
-
-    try {
-      const res = await fetch(`https://openlibrary.org${book.key}.json`);
-      if (!res.ok) throw new Error("Résumé indisponible");
-      const json = await res.json();
-      const desc = json.description;
-      book.synopsis = typeof desc === "string" ? desc : desc && desc.value ? desc.value : "";
-      apply();
-    } catch (err) {
-      console.error(err);
-      if (detailBookKey === book.key) {
-        synEl.textContent = "Résumé indisponible (hors ligne ?)";
-        synEl.className = "synopsis";
+      applyTitleAndSynopsis();
+    } else {
+      try {
+        const res = await fetch(`https://openlibrary.org${book.key}.json`);
+        if (!res.ok) throw new Error("Résumé indisponible");
+        const json = await res.json();
+        const desc = json.description;
+        book.synopsis = typeof desc === "string" ? desc : desc && desc.value ? desc.value : "";
+        applyTitleAndSynopsis();
+      } catch (err) {
+        console.error(err);
+        if (detailBookKey === book.key) {
+          synEl.textContent = "Résumé indisponible (hors ligne ?)";
+          synEl.className = "synopsis";
+        }
       }
     }
+
+    if (book.isbn === undefined) {
+      try {
+        const res = await fetch(`https://openlibrary.org${book.key}/editions.json?limit=50`);
+        if (res.ok) {
+          const json = await res.json();
+          const entries = json.entries || [];
+          const isbnOf = (ed) => (ed.isbn_13 && ed.isbn_13[0]) || (ed.isbn_10 && ed.isbn_10[0]) || "";
+          const isFrench = (ed) => (ed.languages || []).some((l) => l.key === "/languages/fre");
+          // Prefer a French edition's ISBN (matches what the reader could actually order), else any.
+          book.isbn = entries.filter(isFrench).map(isbnOf).find(Boolean) || entries.map(isbnOf).find(Boolean) || "";
+        }
+      } catch (err) {
+        console.warn("ISBN indisponible", err);
+      }
+    }
+
+    saveData();
+    if (detailBookKey === book.key) renderIsbn(book);
   }
 
   document.querySelectorAll(".stamp-btn").forEach((btn) => {
@@ -788,6 +894,18 @@
       book.review = value;
       saveData();
     }, 400);
+  });
+
+  document.getElementById("detail-isbn-copy").addEventListener("click", async () => {
+    const book = currentDetailBook();
+    if (!book || !book.isbn) return;
+    try {
+      await navigator.clipboard.writeText(book.isbn);
+      toast("ISBN copié");
+    } catch (err) {
+      console.warn("Copie impossible", err);
+      toast("Impossible de copier");
+    }
   });
 
   document.getElementById("detail-remove").addEventListener("click", () => {
