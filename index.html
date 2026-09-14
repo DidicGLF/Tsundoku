@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tsundoku — Suivi de lecture</title>
+<meta name="description" content="Suivez vos romans par auteur : possession, lecture, notes et avis.">
+<meta name="theme-color" content="#8b5e3c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="#/" class="brand">📚 Tsundoku</a>
+    <div class="search-wrap">
+      <input id="author-search" type="search" placeholder="Rechercher un auteur…" autocomplete="off" aria-label="Rechercher un auteur">
+      <div id="search-results" class="search-results" hidden></div>
+    </div>
+  </div>
+</header>
+
+<main id="app" class="app"></main>
+
+<template id="tpl-author-card">
+  <a class="author-card" href="#">
+    <div class="author-card-name"></div>
+    <div class="author-card-stats"></div>
+    <div class="progress"><div class="progress-bar"></div></div>
+  </a>
+</template>
+
+<template id="tpl-book-row">
+  <details class="book-row">
+    <summary>
+      <img class="book-cover" alt="" loading="lazy">
+      <div class="book-summary-text">
+        <div class="book-title"></div>
+        <div class="book-year"></div>
+      </div>
+      <span class="badge badge-status"></span>
+      <span class="badge badge-owned" hidden>possédé</span>
+    </summary>
+    <div class="book-detail">
+      <label class="field">
+        <span>Possédé</span>
+        <input type="checkbox" class="f-owned">
+      </label>
+      <label class="field">
+        <span>Statut</span>
+        <select class="f-status">
+          <option value="to-read">À lire</option>
+          <option value="reading">En cours</option>
+          <option value="done">Terminé</option>
+        </select>
+      </label>
+      <div class="field">
+        <span>Note</span>
+        <div class="stars" data-rating="0">
+          <button type="button" class="star" data-value="1">★</button>
+          <button type="button" class="star" data-value="2">★</button>
+          <button type="button" class="star" data-value="3">★</button>
+          <button type="button" class="star" data-value="4">★</button>
+          <button type="button" class="star" data-value="5">★</button>
+          <button type="button" class="star-clear" title="Effacer la note">effacer</button>
+        </div>
+      </div>
+      <label class="field field-review">
+        <span>Avis / commentaire</span>
+        <textarea class="f-review" rows="3" placeholder="Votre avis sur ce roman…"></textarea>
+      </label>
+      <button type="button" class="btn-remove-book">Retirer de ma liste</button>
+    </div>
+  </details>
+</template>
+
+<script src="app.js" defer></script>
+</body>
+</html>
