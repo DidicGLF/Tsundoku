@@ -39,8 +39,9 @@
     // search.json merges editions/translations into one record per work (unlike
     // /authors/{id}/works.json, which lists every translated edition as its own
     // near-duplicate entry) — much cleaner starting list to curate.
+    // language=fre keeps only works that have at least one French edition.
     const fields = "key,title,first_publish_year,cover_i,edition_count";
-    const url = `https://openlibrary.org/search.json?author_key=${encodeURIComponent(authorKey)}&limit=500&fields=${fields}`;
+    const url = `https://openlibrary.org/search.json?author_key=${encodeURIComponent(authorKey)}&language=fre&limit=500&fields=${fields}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error("Impossible de récupérer les romans");
     const json = await res.json();

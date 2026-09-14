@@ -25,6 +25,7 @@ puis aller sur http://localhost:8000.
 
 ## Notes
 
-- Les romans sont récupérés via l'API publique [Open Library](https://openlibrary.org/developers/api) (aucune clé requise).
+- Les romans sont récupérés via l'API publique [Open Library](https://openlibrary.org/developers/api) (aucune clé requise), en ne gardant que les œuvres ayant au moins une édition en français.
+- Le titre affiché reste parfois celui de l'édition d'origine cataloguée par Open Library (souvent en anglais) même quand une édition française existe — Open Library ne fournit pas facilement le titre français au niveau de l'œuvre.
 - Comme Open Library liste toutes les œuvres d'un auteur (parfois essais, recueils ou doublons de traductions), utilisez « Retirer de ma liste » sur une fiche pour nettoyer les entrées qui ne sont pas des romans.
 - Les données vivent dans le `localStorage` du navigateur utilisé : elles ne se synchronisent pas entre appareils et sont propres à ce navigateur (ne pas vider les données de site pour ce domaine).
