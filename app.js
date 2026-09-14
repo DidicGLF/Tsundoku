@@ -9,13 +9,14 @@
   function loadData() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { version: 1, authors: {} };
+      if (!raw) return { version: 1, authors: {}, settings: { googleBooksApiKey: "" } };
       const parsed = JSON.parse(raw);
       if (!parsed.authors) parsed.authors = {};
+      if (!parsed.settings) parsed.settings = { googleBooksApiKey: "" };
       return parsed;
     } catch (e) {
       console.error("Lecture des données impossible, réinitialisation.", e);
-      return { version: 1, authors: {} };
+      return { version: 1, authors: {}, settings: { googleBooksApiKey: "" } };
     }
   }
 
@@ -46,6 +47,30 @@
     if (!res.ok) throw new Error("Impossible de récupérer les romans");
     const json = await res.json();
     return (json.docs || []).filter((w) => w.title && w.key);
+  }
+
+  // Google Books requires an API key for any request (anonymous calls get a
+  // 0 daily quota). Used only as an opt-in complement: when a key is set in
+  // Réglages, we try it first for a French title/synopsis before falling
+  // back to Open Library's (usually English) description.
+  async function fetchGoogleBooksFr(title, authorName) {
+    const key = data.settings.googleBooksApiKey;
+    if (!key) return null;
+    const q = `intitle:${title} inauthor:${authorName}`;
+    const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&langRestrict=fr&maxResults=1&key=${encodeURIComponent(key)}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const json = await res.json();
+    const info = json.items && json.items[0] && json.items[0].volumeInfo;
+    return info || null;
+  }
+
+  function normalizeTitle(t) {
+    return (t || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
   }
 
   function coverSrc(coverId) {
@@ -103,6 +128,7 @@
   function currentRoute() {
     const hash = location.hash.replace(/^#\/?/, "");
     if (!hash) return { view: "home" };
+    if (hash === "reglages") return { view: "settings" };
     const m = hash.match(/^author\/(.+)$/);
     if (m) return { view: "author", key: decodeURIComponent(m[1]) };
     return { view: "home" };
@@ -118,6 +144,8 @@
     const route = currentRoute();
     if (route.view === "author" && data.authors[route.key]) {
       renderAuthorView(route.key);
+    } else if (route.view === "settings") {
+      renderSettingsView();
     } else {
       renderHomeView();
     }
@@ -160,6 +188,49 @@
       grid.appendChild(node);
     }
     app.appendChild(grid);
+  }
+
+  // ---------- Settings view ----------
+
+  function renderSettingsView() {
+    app.innerHTML = `
+      <a class="back-link" href="#/">← Retour</a>
+      <div class="section-title">Réglages</div>
+      <p class="settings-help">
+        Optionnel : ajoutez une clé API Google Books pour obtenir automatiquement le titre et le
+        résumé en français d'un roman quand Open Library ne les a pas (son résumé est souvent en
+        anglais). Sans clé, l'appli continue de fonctionner normalement, juste avec les résumés
+        d'Open Library.<br><br>
+        Pour en obtenir une gratuitement : ouvrez
+        <a href="https://console.cloud.google.com/apis/library/books.googleapis.com" target="_blank" rel="noopener">console.cloud.google.com → API Books</a>,
+        cliquez sur « Activer », puis créez une clé dans « Identifiants ».
+      </p>
+      <form class="settings-form" id="settings-form">
+        <label for="gb-key">Clé API Google Books</label>
+        <input type="text" id="gb-key" placeholder="AIza…" autocomplete="off">
+        <div class="author-actions">
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+          <button type="button" class="btn" id="btn-clear-key">Retirer la clé</button>
+        </div>
+      </form>
+    `;
+
+    const input = document.getElementById("gb-key");
+    input.value = data.settings.googleBooksApiKey || "";
+
+    document.getElementById("settings-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      data.settings.googleBooksApiKey = input.value.trim();
+      saveData();
+      toast("Réglages enregistrés");
+    });
+
+    document.getElementById("btn-clear-key").addEventListener("click", () => {
+      input.value = "";
+      data.settings.googleBooksApiKey = "";
+      saveData();
+      toast("Clé retirée");
+    });
   }
 
   // ---------- Author view ----------
@@ -271,7 +342,7 @@
     }
 
     if (!groupBySeries) {
-      for (const book of books) list.appendChild(buildBookRow(book));
+      for (const book of books) list.appendChild(buildBookRow(book, author.name));
       return;
     }
 
@@ -292,17 +363,17 @@
       heading.className = "series-heading";
       heading.textContent = `${name} (${groups.get(name).length})`;
       list.appendChild(heading);
-      for (const book of groups.get(name)) list.appendChild(buildBookRow(book));
+      for (const book of groups.get(name)) list.appendChild(buildBookRow(book, author.name));
     }
   }
 
-  function buildBookRow(book) {
+  function buildBookRow(book, authorName) {
     const tpl = document.getElementById("tpl-book-row");
     const node = tpl.content.cloneNode(true);
     const row = node.querySelector(".book-row");
     row.dataset.workKey = book.key;
     node.querySelector(".book-cover").src = coverSrc(book.coverId);
-    node.querySelector(".book-title").textContent = book.title;
+    node.querySelector(".book-title").textContent = book.titleFr || book.title;
     const yearBits = [book.year || "Année inconnue"];
     if (book.editions) yearBits.push(`${book.editions} édition${book.editions > 1 ? "s" : ""}`);
     node.querySelector(".book-year").textContent = yearBits.join(" · ");
@@ -313,8 +384,9 @@
     setStars(node.querySelector(".stars"), book.rating);
     updateBadges(node, book);
     renderSynopsis(node.querySelector(".synopsis"), book);
+    renderTitleHint(node.querySelector(".title-original"), book);
     row.addEventListener("toggle", () => {
-      if (row.open && book.synopsis === undefined) loadSynopsis(book, row);
+      if (row.open && book.synopsis === undefined) loadBookDetails(book, authorName, row);
     });
     return row;
   }
@@ -332,22 +404,54 @@
     }
   }
 
-  async function loadSynopsis(book, row) {
-    const el = row.querySelector(".synopsis");
-    el.textContent = "";
-    el.className = "synopsis loading";
+  function renderTitleHint(el, book) {
+    if (book.titleFr) {
+      el.textContent = `Titre Open Library : ${book.title}`;
+      el.hidden = false;
+    } else {
+      el.hidden = true;
+    }
+  }
+
+  async function loadBookDetails(book, authorName, row) {
+    const synopsisEl = row.querySelector(".synopsis");
+    synopsisEl.textContent = "";
+    synopsisEl.className = "synopsis loading";
+
+    let gb = null;
+    try {
+      gb = await fetchGoogleBooksFr(book.title, authorName);
+    } catch (err) {
+      console.warn("Google Books indisponible", err);
+    }
+
+    const applyResult = () => {
+      if (gb && gb.title && normalizeTitle(gb.title) !== normalizeTitle(book.title)) {
+        book.titleFr = gb.title;
+        row.querySelector(".book-title").textContent = book.titleFr;
+        renderTitleHint(row.querySelector(".title-original"), book);
+      }
+      saveData();
+      renderSynopsis(synopsisEl, book);
+    };
+
+    if (gb && gb.description) {
+      book.synopsis = gb.description;
+      applyResult();
+      return;
+    }
+
     try {
       const res = await fetch(`https://openlibrary.org${book.key}.json`);
       if (!res.ok) throw new Error("Résumé indisponible");
       const json = await res.json();
       const desc = json.description;
       book.synopsis = typeof desc === "string" ? desc : desc && desc.value ? desc.value : "";
-      saveData();
-      renderSynopsis(el, book);
+      applyResult();
     } catch (err) {
       console.error(err);
-      el.textContent = "Résumé indisponible (hors ligne ?)";
-      el.className = "synopsis";
+      synopsisEl.textContent = "Résumé indisponible (hors ligne ?)";
+      synopsisEl.className = "synopsis";
     }
   }
 
