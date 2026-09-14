@@ -263,6 +263,16 @@ button { font-family: inherit; }
   gap: 8px;
 }
 
+.series-heading {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--accent);
+  margin: 16px 2px 2px;
+}
+.series-heading:first-child {
+  margin-top: 2px;
+}
+
 .book-row {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -359,7 +369,7 @@ button { font-family: inherit; }
   color: var(--text-dim);
 }
 
-.field select, .field textarea {
+.field select, .field textarea, .field input[type="text"] {
   flex: 1;
   padding: 8px 10px;
   border-radius: 8px;

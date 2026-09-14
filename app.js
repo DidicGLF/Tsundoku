@@ -68,6 +68,7 @@
       editions: work.edition_count || null,
       owned: false,
       status: "to-read",
+      series: "",
       rating: null,
       review: "",
     };
@@ -164,9 +165,11 @@
   // ---------- Author view ----------
 
   let activeFilter = "all";
+  let groupBySeries = false;
 
   function renderAuthorView(authorKey) {
     activeFilter = "all";
+    groupBySeries = false;
     const author = data.authors[authorKey];
 
     app.innerHTML = "";
@@ -199,6 +202,14 @@
     `;
     app.appendChild(pills);
 
+    const groupToggle = document.createElement("div");
+    groupToggle.className = "filter-pills";
+    groupToggle.innerHTML = `
+      <button type="button" class="pill active" data-group="list">Liste</button>
+      <button type="button" class="pill" data-group="series">Par série</button>
+    `;
+    app.appendChild(groupToggle);
+
     const list = document.createElement("div");
     list.className = "book-list";
     list.id = "book-list";
@@ -214,6 +225,14 @@
       if (!btn) return;
       activeFilter = btn.dataset.filter;
       pills.querySelectorAll(".pill").forEach((p) => p.classList.toggle("active", p === btn));
+      renderBookList(authorKey);
+    });
+
+    groupToggle.addEventListener("click", (e) => {
+      const btn = e.target.closest(".pill");
+      if (!btn) return;
+      groupBySeries = btn.dataset.group === "series";
+      groupToggle.querySelectorAll(".pill").forEach((p) => p.classList.toggle("active", p === btn));
       renderBookList(authorKey);
     });
 
@@ -251,27 +270,53 @@
       return;
     }
 
-    const tpl = document.getElementById("tpl-book-row");
-    for (const book of books) {
-      const node = tpl.content.cloneNode(true);
-      const row = node.querySelector(".book-row");
-      row.dataset.workKey = book.key;
-      node.querySelector(".book-cover").src = coverSrc(book.coverId);
-      node.querySelector(".book-title").textContent = book.title;
-      const yearBits = [book.year || "Année inconnue"];
-      if (book.editions) yearBits.push(`${book.editions} édition${book.editions > 1 ? "s" : ""}`);
-      node.querySelector(".book-year").textContent = yearBits.join(" · ");
-      node.querySelector(".f-owned").checked = book.owned;
-      node.querySelector(".f-status").value = book.status;
-      node.querySelector(".f-review").value = book.review || "";
-      setStars(node.querySelector(".stars"), book.rating);
-      updateBadges(node, book);
-      renderSynopsis(node.querySelector(".synopsis"), book);
-      list.appendChild(node);
-      row.addEventListener("toggle", () => {
-        if (row.open && book.synopsis === undefined) loadSynopsis(book, row);
-      });
+    if (!groupBySeries) {
+      for (const book of books) list.appendChild(buildBookRow(book));
+      return;
     }
+
+    const groups = new Map();
+    for (const book of books) {
+      const name = (book.series || "").trim() || "Sans série";
+      if (!groups.has(name)) groups.set(name, []);
+      groups.get(name).push(book);
+    }
+    const names = [...groups.keys()].sort((a, b) => {
+      if (a === "Sans série") return 1;
+      if (b === "Sans série") return -1;
+      return a.localeCompare(b, "fr", { sensitivity: "base" });
+    });
+
+    for (const name of names) {
+      const heading = document.createElement("div");
+      heading.className = "series-heading";
+      heading.textContent = `${name} (${groups.get(name).length})`;
+      list.appendChild(heading);
+      for (const book of groups.get(name)) list.appendChild(buildBookRow(book));
+    }
+  }
+
+  function buildBookRow(book) {
+    const tpl = document.getElementById("tpl-book-row");
+    const node = tpl.content.cloneNode(true);
+    const row = node.querySelector(".book-row");
+    row.dataset.workKey = book.key;
+    node.querySelector(".book-cover").src = coverSrc(book.coverId);
+    node.querySelector(".book-title").textContent = book.title;
+    const yearBits = [book.year || "Année inconnue"];
+    if (book.editions) yearBits.push(`${book.editions} édition${book.editions > 1 ? "s" : ""}`);
+    node.querySelector(".book-year").textContent = yearBits.join(" · ");
+    node.querySelector(".f-owned").checked = book.owned;
+    node.querySelector(".f-status").value = book.status;
+    node.querySelector(".f-series").value = book.series || "";
+    node.querySelector(".f-review").value = book.review || "";
+    setStars(node.querySelector(".stars"), book.rating);
+    updateBadges(node, book);
+    renderSynopsis(node.querySelector(".synopsis"), book);
+    row.addEventListener("toggle", () => {
+      if (row.open && book.synopsis === undefined) loadSynopsis(book, row);
+    });
+    return row;
   }
 
   function renderSynopsis(el, book) {
@@ -338,18 +383,20 @@
     }
   }
 
-  const reviewTimers = new WeakMap();
+  const debouncedFields = { "f-review": "review", "f-series": "series" };
+  const inputTimers = new WeakMap();
   function handleBookFieldInput(e, authorKey) {
-    if (!e.target.classList.contains("f-review")) return;
+    const prop = Object.keys(debouncedFields).find((cls) => e.target.classList.contains(cls));
+    if (!prop) return;
     const row = e.target.closest(".book-row");
     const book = data.authors[authorKey].books[row.dataset.workKey];
     if (!book) return;
-    clearTimeout(reviewTimers.get(e.target));
+    clearTimeout(inputTimers.get(e.target));
     const value = e.target.value;
-    reviewTimers.set(
+    inputTimers.set(
       e.target,
       setTimeout(() => {
-        book.review = value;
+        book[debouncedFields[prop]] = value;
         saveData();
       }, 400)
     );
