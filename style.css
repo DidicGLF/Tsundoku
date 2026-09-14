@@ -438,6 +438,12 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
 .owned-toggle input { width: 16px; height: 16px; accent-color: var(--brass); }
 
 .d-label { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-faint); margin: 18px 0 6px; }
+.d-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.d-label-row .d-label { margin: 18px 0 6px; }
+.link-reset {
+  background: none; border: none; color: var(--ink-soft); font-size: 11.5px; text-decoration: underline; padding: 0;
+}
+.link-reset:hover { color: var(--accent); }
 .synopsis { font-size: 13.5px; line-height: 1.6; color: var(--ink-soft); margin: 0; }
 .synopsis.loading::before { content: "Chargement du résumé…"; font-style: italic; }
 .synopsis.empty::before { content: "Pas de résumé disponible."; font-style: italic; }
@@ -446,10 +452,11 @@ textarea.d-review {
   width: 100%; min-height: 78px; padding: 9px 10px; border-radius: var(--r); border: 1px solid var(--paper-line);
   background: var(--paper); color: var(--ink); font-family: inherit; font-size: 13px; resize: vertical;
 }
-.field-series {
+.field-text {
   width: 100%; padding: 8px 10px; border-radius: var(--r); border: 1px solid var(--paper-line);
   background: var(--paper); color: var(--ink); font-family: inherit; font-size: 13px;
 }
+.field-text::placeholder { color: var(--ink-faint); }
 
 .btn-remove-book {
   margin-top: 18px;

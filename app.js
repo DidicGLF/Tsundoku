@@ -110,9 +110,13 @@
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  function displayTitle(book) {
+    return book.customTitle || book.titleFr || book.title;
+  }
+
   function placeholderCover(book) {
     const p = paletteFor(book.key);
-    const lines = wrapTitle(book.titleFr || book.title, 11);
+    const lines = wrapTitle(displayTitle(book), 11);
     const tspans = lines.map((l, i) => `<tspan x="20" dy="${i === 0 ? 0 : 25}">${escapeXml(l)}</tspan>`).join("");
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300">` +
@@ -143,6 +147,7 @@
       owned: false,
       status: "to-read",
       series: "",
+      customTitle: "",
       rating: null,
       review: "",
     };
@@ -393,11 +398,11 @@
     if (onlyOwned) books = books.filter((b) => b.owned);
     if (withinQuery) {
       const q = withinQuery.toLowerCase();
-      books = books.filter((b) => b.title.toLowerCase().includes(q) || (b.titleFr || "").toLowerCase().includes(q));
+      books = books.filter((b) => displayTitle(b).toLowerCase().includes(q) || b.title.toLowerCase().includes(q));
     }
     books.sort((a, b) => {
       if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
-      if (sortBy === "title") return (a.titleFr || a.title).localeCompare(b.titleFr || b.title, "fr", { sensitivity: "base" });
+      if (sortBy === "title") return displayTitle(a).localeCompare(displayTitle(b), "fr", { sensitivity: "base" });
       if (a.year && b.year && a.year !== b.year) return a.year.localeCompare(b.year);
       if (a.year && !b.year) return -1;
       if (!a.year && b.year) return 1;
@@ -468,7 +473,7 @@
     const stamp = node.querySelector(".stamp");
     stamp.textContent = STATUS_LABELS[book.status];
     stamp.dataset.status = book.status;
-    node.querySelector(".card-title").textContent = book.titleFr || book.title;
+    node.querySelector(".card-title").textContent = displayTitle(book);
     const metaBits = [book.year || "Année inconnue"];
     if (book.editions) metaBits.push(`${book.editions} éd.`);
     node.querySelector(".card-meta").textContent = metaBits.join(" · ");
@@ -536,10 +541,14 @@
     coverWrap.appendChild(img);
 
     document.getElementById("detail-series-label").textContent = book.series ? book.series.trim() : "Roman indépendant";
-    document.getElementById("detail-title").textContent = book.titleFr || book.title;
+    document.getElementById("detail-title").textContent = displayTitle(book);
     renderTitleHint(document.getElementById("detail-original"), book);
     document.getElementById("detail-meta").textContent =
       (book.year || "Année inconnue") + (book.owned ? " · dans ma bibliothèque" : " · pas encore possédé");
+    const titleField = document.getElementById("detail-title-field");
+    titleField.value = book.customTitle || "";
+    titleField.placeholder = book.titleFr || book.title;
+    document.getElementById("detail-title-reset").hidden = !book.customTitle;
     document.getElementById("detail-series-field").value = book.series || "";
     document.getElementById("detail-review").value = book.review || "";
     document.getElementById("detail-owned").checked = !!book.owned;
@@ -578,7 +587,7 @@
   }
 
   function renderTitleHint(el, book) {
-    if (book.titleFr) {
+    if (displayTitle(book) !== book.title) {
       el.textContent = `Titre Open Library : ${book.title}`;
       el.hidden = false;
     } else {
@@ -602,7 +611,8 @@
       if (gb && gb.title && normalizeTitle(gb.title) !== normalizeTitle(book.title)) {
         book.titleFr = gb.title;
         if (detailBookKey === book.key) {
-          document.getElementById("detail-title").textContent = book.titleFr;
+          document.getElementById("detail-title").textContent = displayTitle(book);
+          document.getElementById("detail-title-field").placeholder = book.titleFr || book.title;
           renderTitleHint(document.getElementById("detail-original"), book);
         }
       }
@@ -657,6 +667,40 @@
     const book = currentDetailBook();
     if (!book) return;
     book.owned = e.target.checked;
+    saveData();
+  });
+
+  let titleTimer = null;
+  document.getElementById("detail-title-field").addEventListener("input", (e) => {
+    const book = currentDetailBook();
+    if (!book) return;
+    clearTimeout(titleTimer);
+    const value = e.target.value;
+    const effective = value.trim() || book.titleFr || book.title;
+    document.getElementById("detail-title").textContent = effective;
+    document.getElementById("detail-title-reset").hidden = !value.trim();
+    const original = document.getElementById("detail-original");
+    if (effective !== book.title) {
+      original.textContent = `Titre Open Library : ${book.title}`;
+      original.hidden = false;
+    } else {
+      original.hidden = true;
+    }
+    titleTimer = setTimeout(() => {
+      book.customTitle = value.trim();
+      saveData();
+    }, 400);
+  });
+
+  document.getElementById("detail-title-reset").addEventListener("click", () => {
+    const book = currentDetailBook();
+    if (!book) return;
+    clearTimeout(titleTimer);
+    book.customTitle = "";
+    document.getElementById("detail-title-field").value = "";
+    document.getElementById("detail-title").textContent = book.titleFr || book.title;
+    document.getElementById("detail-title-reset").hidden = true;
+    renderTitleHint(document.getElementById("detail-original"), book);
     saveData();
   });
 
