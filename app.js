@@ -73,13 +73,62 @@
       .replace(/[^a-z0-9]/g, "");
   }
 
-  function coverSrc(coverId) {
-    if (coverId) return `https://covers.openlibrary.org/b/id/${coverId}-S.jpg`;
-    return "data:image/svg+xml;utf8," + encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="58">' +
-      '<rect width="40" height="58" rx="4" fill="#c9bda6"/>' +
-      '<text x="20" y="34" font-size="20" text-anchor="middle" fill="#fff">📖</text></svg>'
-    );
+  // ---------- Cover art ----------
+  // Real Open Library cover when we have one; otherwise a generated
+  // "library catalog" placeholder card so the grid never shows a broken image.
+
+  const PALETTES = [
+    { from: "#2C4770", to: "#182640", rule: "#E4C77B" },
+    { from: "#63212D", to: "#391018", rule: "#D8B26A" },
+    { from: "#22503F", to: "#12312A", rule: "#E7DCB8" },
+    { from: "#3A3E44", to: "#1E2124", rule: "#C1543C" },
+  ];
+
+  function paletteFor(key) {
+    let h = 0;
+    for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+    return PALETTES[h % PALETTES.length];
+  }
+
+  function wrapTitle(title, max) {
+    const words = title.split(" ");
+    const lines = [];
+    let cur = "";
+    for (const w of words) {
+      if ((cur + " " + w).trim().length > max && cur) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = (cur + " " + w).trim();
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.slice(0, 5);
+  }
+
+  function escapeXml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function placeholderCover(book) {
+    const p = paletteFor(book.key);
+    const lines = wrapTitle(book.titleFr || book.title, 11);
+    const tspans = lines.map((l, i) => `<tspan x="20" dy="${i === 0 ? 0 : 25}">${escapeXml(l)}</tspan>`).join("");
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300">` +
+      `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+      `<stop offset="0" stop-color="${p.from}"/><stop offset="1" stop-color="${p.to}"/>` +
+      `</linearGradient></defs>` +
+      `<rect width="200" height="300" fill="url(#g)"/>` +
+      `<rect x="13" y="13" width="174" height="274" fill="none" stroke="${p.rule}" stroke-width="1.4" opacity=".55"/>` +
+      `<text x="20" y="52" font-family="Georgia,serif" font-size="19" font-weight="600" fill="${p.rule}">${tspans}</text>` +
+      `</svg>`;
+    return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  }
+
+  function coverSrc(book, size) {
+    if (book.coverId) return `https://covers.openlibrary.org/b/id/${book.coverId}-${size || "M"}.jpg`;
+    return placeholderCover(book);
   }
 
   // ---------- Helpers ----------
@@ -105,6 +154,12 @@
     const owned = books.filter((b) => b.owned).length;
     const done = books.filter((b) => b.status === "done").length;
     return { total, owned, done };
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
   }
 
   let toastTimer = null;
@@ -141,6 +196,7 @@
   window.addEventListener("hashchange", render);
 
   function render() {
+    closeDetail();
     const route = currentRoute();
     if (route.view === "author" && data.authors[route.key]) {
       renderAuthorView(route.key);
@@ -154,12 +210,14 @@
   // ---------- Home view ----------
 
   function renderHomeView() {
+    currentAuthorKey = null;
     const authors = Object.values(data.authors).sort((a, b) =>
       a.name.localeCompare(b.name, "fr", { sensitivity: "base" })
     );
 
+    app.innerHTML = "";
+
     if (authors.length === 0) {
-      app.innerHTML = "";
       const empty = document.createElement("div");
       empty.className = "empty-state";
       empty.innerHTML =
@@ -168,7 +226,11 @@
       return;
     }
 
-    app.innerHTML = '<div class="section-title">Mes auteurs</div>';
+    const title = document.createElement("div");
+    title.className = "section-title";
+    title.textContent = "Ma bibliothèque";
+    app.appendChild(title);
+
     const grid = document.createElement("div");
     grid.className = "author-grid";
     const tpl = document.getElementById("tpl-author-card");
@@ -177,24 +239,35 @@
       const stats = authorStats(author);
       const node = tpl.content.cloneNode(true);
       const card = node.querySelector(".author-card");
-      card.href = `#/author/${encodeURIComponent(author.key)}`;
-      node.querySelector(".author-card-name").textContent = author.name;
-      node.querySelector(".author-card-stats").textContent =
-        stats.total === 0
-          ? "Aucun roman"
-          : `${stats.owned}/${stats.total} possédés · ${stats.done}/${stats.total} lus`;
+      const firstBook = Object.values(author.books || {})[0];
+      const img = node.querySelector(".ac-cover img");
+      if (firstBook) img.src = coverSrc(firstBook, "S");
+      else img.remove();
+      node.querySelector(".ac-name").textContent = author.name;
+      node.querySelector(".stat-line").textContent =
+        stats.total === 0 ? "Aucun roman" : `${stats.owned}/${stats.total} possédés · ${stats.done}/${stats.total} lus`;
       const pct = stats.total ? Math.round((stats.done / stats.total) * 100) : 0;
-      node.querySelector(".progress-bar").style.width = pct + "%";
+      node.querySelector(".meter i").style.width = pct + "%";
+      card.addEventListener("click", () => navigate(`#/author/${encodeURIComponent(author.key)}`));
       grid.appendChild(node);
     }
+
+    const ghost = document.createElement("button");
+    ghost.type = "button";
+    ghost.className = "ghost-card";
+    ghost.innerHTML = '<span class="ghost-plus">+</span>Rechercher un nouvel auteur';
+    ghost.addEventListener("click", () => searchInput.focus());
+    grid.appendChild(ghost);
+
     app.appendChild(grid);
   }
 
   // ---------- Settings view ----------
 
   function renderSettingsView() {
+    currentAuthorKey = null;
     app.innerHTML = `
-      <a class="back-link" href="#/">← Retour</a>
+      <div class="crumbs"><a href="#/">Bibliothèque</a><span>›</span><span>Réglages</span></div>
       <div class="section-title">Réglages</div>
       <p class="settings-help">
         Optionnel : ajoutez une clé API Google Books pour obtenir automatiquement le titre et le
@@ -235,160 +308,260 @@
 
   // ---------- Author view ----------
 
-  let activeFilter = "all";
-  let groupBySeries = false;
+  let currentAuthorKey = null;
+  let groupMode = "none";
+  let onlyOwned = false;
+  let sortBy = "year";
+  let withinQuery = "";
 
   function renderAuthorView(authorKey) {
-    activeFilter = "all";
-    groupBySeries = false;
+    currentAuthorKey = authorKey;
+    groupMode = "none";
+    onlyOwned = false;
+    sortBy = "year";
+    withinQuery = "";
     const author = data.authors[authorKey];
 
-    app.innerHTML = "";
-
-    const header = document.createElement("div");
-    header.className = "author-header";
-    header.innerHTML = `
-      <a class="back-link" href="#/">← Retour</a>
-      <h1></h1>
+    app.innerHTML = `
+      <div class="crumbs"><a href="#/">Bibliothèque</a><span>›</span><span id="crumb-author"></span></div>
+      <div class="author-head">
+        <h2 id="author-name"></h2>
+        <div class="author-stats">
+          <div class="astat"><b id="stat-owned"></b><br>possédés</div>
+          <div class="astat"><b id="stat-done"></b><br>terminés</div>
+          <div class="astat"><b id="stat-total"></b><br>au catalogue</div>
+        </div>
+      </div>
+      <div class="author-actions">
+        <button type="button" class="btn" id="btn-refresh">🔄 Actualiser la liste</button>
+        <button type="button" class="btn btn-danger" id="btn-delete-author">🗑 Supprimer cet auteur</button>
+      </div>
+      <div class="rail">
+        <div class="rail-group">
+          <span class="rail-label">Ranger par</span>
+          <div class="seg" id="group-seg">
+            <button type="button" class="active" data-group="none">Grille</button>
+            <button type="button" data-group="series">Série</button>
+            <button type="button" data-group="status">Statut</button>
+          </div>
+        </div>
+        <div class="rail-group">
+          <button type="button" class="chip" id="owned-chip">Possédés uniquement</button>
+          <select class="sortsel" id="sort-sel">
+            <option value="year">Trier : année</option>
+            <option value="title">Trier : titre</option>
+            <option value="rating">Trier : note</option>
+          </select>
+          <input type="text" class="rail-search" id="within-search" placeholder="Filtrer un titre…">
+        </div>
+      </div>
+      <div id="book-area"></div>
     `;
-    header.querySelector("h1").textContent = author.name;
-    app.appendChild(header);
 
-    const actions = document.createElement("div");
-    actions.className = "author-actions";
-    actions.innerHTML = `
-      <button type="button" class="btn" id="btn-refresh">🔄 Actualiser la liste</button>
-      <button type="button" class="btn btn-danger" id="btn-delete-author">🗑 Supprimer cet auteur</button>
-    `;
-    app.appendChild(actions);
+    document.getElementById("author-name").textContent = author.name;
+    document.getElementById("crumb-author").textContent = author.name;
 
-    const pills = document.createElement("div");
-    pills.className = "filter-pills";
-    pills.innerHTML = `
-      <button type="button" class="pill active" data-filter="all">Tous</button>
-      <button type="button" class="pill" data-filter="owned">Possédés</button>
-      <button type="button" class="pill" data-filter="to-read">À lire</button>
-      <button type="button" class="pill" data-filter="reading">En cours</button>
-      <button type="button" class="pill" data-filter="done">Terminé</button>
-    `;
-    app.appendChild(pills);
+    renderBookArea(author);
 
-    const groupToggle = document.createElement("div");
-    groupToggle.className = "filter-pills";
-    groupToggle.innerHTML = `
-      <button type="button" class="pill active" data-group="list">Liste</button>
-      <button type="button" class="pill" data-group="series">Par série</button>
-    `;
-    app.appendChild(groupToggle);
+    document.getElementById("btn-refresh").addEventListener("click", () => refreshAuthorWorks(authorKey));
+    document.getElementById("btn-delete-author").addEventListener("click", () => deleteAuthor(authorKey));
 
-    const list = document.createElement("div");
-    list.className = "book-list";
-    list.id = "book-list";
-    app.appendChild(list);
-
-    renderBookList(authorKey);
-
-    actions.querySelector("#btn-refresh").addEventListener("click", () => refreshAuthorWorks(authorKey));
-    actions.querySelector("#btn-delete-author").addEventListener("click", () => deleteAuthor(authorKey));
-
-    pills.addEventListener("click", (e) => {
-      const btn = e.target.closest(".pill");
+    document.getElementById("group-seg").addEventListener("click", (e) => {
+      const btn = e.target.closest("button");
       if (!btn) return;
-      activeFilter = btn.dataset.filter;
-      pills.querySelectorAll(".pill").forEach((p) => p.classList.toggle("active", p === btn));
-      renderBookList(authorKey);
+      groupMode = btn.dataset.group;
+      document.querySelectorAll("#group-seg button").forEach((b) => b.classList.toggle("active", b === btn));
+      renderBookArea(author);
     });
-
-    groupToggle.addEventListener("click", (e) => {
-      const btn = e.target.closest(".pill");
-      if (!btn) return;
-      groupBySeries = btn.dataset.group === "series";
-      groupToggle.querySelectorAll(".pill").forEach((p) => p.classList.toggle("active", p === btn));
-      renderBookList(authorKey);
+    document.getElementById("owned-chip").addEventListener("click", (e) => {
+      onlyOwned = !onlyOwned;
+      e.currentTarget.classList.toggle("active", onlyOwned);
+      renderBookArea(author);
     });
-
-    list.addEventListener("change", (e) => handleBookFieldChange(e, authorKey));
-    list.addEventListener("input", (e) => handleBookFieldInput(e, authorKey));
-    list.addEventListener("click", (e) => handleBookListClick(e, authorKey));
+    document.getElementById("sort-sel").addEventListener("change", (e) => {
+      sortBy = e.target.value;
+      renderBookArea(author);
+    });
+    document.getElementById("within-search").addEventListener("input", (e) => {
+      withinQuery = e.target.value;
+      renderBookArea(author);
+    });
   }
 
-  function filteredBooks(author) {
+  function filteredSortedBooks(author) {
     let books = Object.values(author.books || {});
-    if (activeFilter === "owned") books = books.filter((b) => b.owned);
-    else if (["to-read", "reading", "done"].includes(activeFilter))
-      books = books.filter((b) => b.status === activeFilter);
-    return books.sort((a, b) => {
+    if (onlyOwned) books = books.filter((b) => b.owned);
+    if (withinQuery) {
+      const q = withinQuery.toLowerCase();
+      books = books.filter((b) => b.title.toLowerCase().includes(q) || (b.titleFr || "").toLowerCase().includes(q));
+    }
+    books.sort((a, b) => {
+      if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
+      if (sortBy === "title") return (a.titleFr || a.title).localeCompare(b.titleFr || b.title, "fr", { sensitivity: "base" });
       if (a.year && b.year && a.year !== b.year) return a.year.localeCompare(b.year);
       if (a.year && !b.year) return -1;
       if (!a.year && b.year) return 1;
       return a.title.localeCompare(b.title, "fr", { sensitivity: "base" });
     });
+    return books;
   }
 
-  function renderBookList(authorKey) {
-    const author = data.authors[authorKey];
-    const list = document.getElementById("book-list");
-    list.innerHTML = "";
-    const books = filteredBooks(author);
+  function renderBookArea(author) {
+    const stats = authorStats(author);
+    document.getElementById("stat-owned").textContent = stats.owned + "/" + stats.total;
+    document.getElementById("stat-done").textContent = stats.done + "/" + stats.total;
+    document.getElementById("stat-total").textContent = stats.total;
+
+    const area = document.getElementById("book-area");
+    const books = filteredSortedBooks(author);
 
     if (books.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "empty-state";
-      empty.innerHTML = Object.keys(author.books || {}).length
-        ? "<p>Aucun roman ne correspond à ce filtre.</p>"
-        : "<p>Aucun roman trouvé pour cet auteur.</p>";
-      list.appendChild(empty);
+      area.innerHTML = Object.keys(author.books || {}).length
+        ? '<div class="empty-state"><p>Aucun roman ne correspond à ces filtres.</p></div>'
+        : '<div class="empty-state"><p>Aucun roman trouvé pour cet auteur.</p></div>';
       return;
     }
 
-    if (!groupBySeries) {
-      for (const book of books) list.appendChild(buildBookRow(book, author.name));
+    area.innerHTML = "";
+
+    if (groupMode === "none") {
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      for (const b of books) grid.appendChild(buildBookCard(b, author));
+      area.appendChild(grid);
       return;
     }
 
+    const keyFn = groupMode === "series" ? (b) => (b.series || "").trim() || "Sans série" : (b) => STATUS_LABELS[b.status];
+    const order = groupMode === "status" ? ["À lire", "En cours", "Terminé"] : null;
     const groups = new Map();
-    for (const book of books) {
-      const name = (book.series || "").trim() || "Sans série";
-      if (!groups.has(name)) groups.set(name, []);
-      groups.get(name).push(book);
+    for (const b of books) {
+      const k = keyFn(b);
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(b);
     }
-    const names = [...groups.keys()].sort((a, b) => {
-      if (a === "Sans série") return 1;
-      if (b === "Sans série") return -1;
-      return a.localeCompare(b, "fr", { sensitivity: "base" });
-    });
+    let names = [...groups.keys()];
+    names.sort(
+      order
+        ? (x, y) => order.indexOf(x) - order.indexOf(y)
+        : (x, y) => (x === "Sans série" ? 1 : y === "Sans série" ? -1 : x.localeCompare(y, "fr", { sensitivity: "base" }))
+    );
 
     for (const name of names) {
       const heading = document.createElement("div");
-      heading.className = "series-heading";
-      heading.textContent = `${name} (${groups.get(name).length})`;
-      list.appendChild(heading);
-      for (const book of groups.get(name)) list.appendChild(buildBookRow(book, author.name));
+      heading.className = "group-heading";
+      heading.innerHTML = `${escapeHtml(name)} <span>${groups.get(name).length}</span>`;
+      area.appendChild(heading);
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      for (const b of groups.get(name)) grid.appendChild(buildBookCard(b, author));
+      area.appendChild(grid);
     }
   }
 
-  function buildBookRow(book, authorName) {
-    const tpl = document.getElementById("tpl-book-row");
+  function buildBookCard(book, author) {
+    const tpl = document.getElementById("tpl-book-card");
     const node = tpl.content.cloneNode(true);
-    const row = node.querySelector(".book-row");
-    row.dataset.workKey = book.key;
-    node.querySelector(".book-cover").src = coverSrc(book.coverId);
-    node.querySelector(".book-title").textContent = book.titleFr || book.title;
-    const yearBits = [book.year || "Année inconnue"];
-    if (book.editions) yearBits.push(`${book.editions} édition${book.editions > 1 ? "s" : ""}`);
-    node.querySelector(".book-year").textContent = yearBits.join(" · ");
-    node.querySelector(".f-owned").checked = book.owned;
-    node.querySelector(".f-status").value = book.status;
-    node.querySelector(".f-series").value = book.series || "";
-    node.querySelector(".f-review").value = book.review || "";
-    setStars(node.querySelector(".stars"), book.rating);
-    updateBadges(node, book);
-    renderSynopsis(node.querySelector(".synopsis"), book);
-    renderTitleHint(node.querySelector(".title-original"), book);
-    row.addEventListener("toggle", () => {
-      if (row.open && book.synopsis === undefined) loadBookDetails(book, authorName, row);
-    });
-    return row;
+    const btn = node.querySelector(".card");
+    node.querySelector(".card-cover img").src = coverSrc(book, "M");
+    node.querySelector(".ribbon").hidden = !book.owned;
+    const stamp = node.querySelector(".stamp");
+    stamp.textContent = STATUS_LABELS[book.status];
+    stamp.dataset.status = book.status;
+    node.querySelector(".card-title").textContent = book.titleFr || book.title;
+    const metaBits = [book.year || "Année inconnue"];
+    if (book.editions) metaBits.push(`${book.editions} éd.`);
+    node.querySelector(".card-meta").textContent = metaBits.join(" · ");
+    node.querySelector(".card-stars").innerHTML = [1, 2, 3, 4, 5]
+      .map((v) => `<span class="${v <= (book.rating || 0) ? "on" : ""}">★</span>`)
+      .join("");
+    btn.addEventListener("click", () => openDetail(book.key, author.key));
+    return btn;
+  }
+
+  function refreshAuthorWorks(authorKey) {
+    const author = data.authors[authorKey];
+    toast("Actualisation…");
+    fetchAuthorWorks(authorKey)
+      .then((works) => {
+        let added = 0;
+        for (const w of works) {
+          if (!author.books[w.key]) {
+            author.books[w.key] = newBookEntry(w);
+            added++;
+          }
+        }
+        saveData();
+        renderBookArea(author);
+        toast(added ? `${added} nouveau(x) roman(s) ajouté(s)` : "Aucun nouveau roman");
+      })
+      .catch((err) => {
+        console.error(err);
+        toast("Échec de l'actualisation (hors ligne ?)");
+      });
+  }
+
+  function deleteAuthor(authorKey) {
+    const author = data.authors[authorKey];
+    if (!confirm(`Supprimer « ${author.name} » et toutes les données associées ?`)) return;
+    delete data.authors[authorKey];
+    saveData();
+    navigate("#/");
+  }
+
+  // ---------- Detail panel ----------
+
+  const detailPanel = document.getElementById("detail");
+  const backdropEl = document.getElementById("backdrop");
+  let detailAuthorKey = null;
+  let detailBookKey = null;
+
+  function currentDetailBook() {
+    if (!detailAuthorKey || !detailBookKey) return null;
+    const author = data.authors[detailAuthorKey];
+    return author ? author.books[detailBookKey] : null;
+  }
+
+  function openDetail(bookKey, authorKey) {
+    detailAuthorKey = authorKey;
+    detailBookKey = bookKey;
+    const book = currentDetailBook();
+    if (!book) return;
+
+    const coverWrap = document.getElementById("detail-cover");
+    coverWrap.innerHTML = "";
+    const img = document.createElement("img");
+    img.src = coverSrc(book, "L");
+    img.alt = "";
+    coverWrap.appendChild(img);
+
+    document.getElementById("detail-series-label").textContent = book.series ? book.series.trim() : "Roman indépendant";
+    document.getElementById("detail-title").textContent = book.titleFr || book.title;
+    renderTitleHint(document.getElementById("detail-original"), book);
+    document.getElementById("detail-meta").textContent =
+      (book.year || "Année inconnue") + (book.owned ? " · dans ma bibliothèque" : " · pas encore possédé");
+    document.getElementById("detail-series-field").value = book.series || "";
+    document.getElementById("detail-review").value = book.review || "";
+    document.getElementById("detail-owned").checked = !!book.owned;
+    document.querySelectorAll(".stamp-btn").forEach((s) => s.classList.toggle("active", s.dataset.status === book.status));
+    document.querySelectorAll("#detail-stars button").forEach((s) => s.classList.toggle("on", Number(s.dataset.value) <= (book.rating || 0)));
+    renderSynopsis(document.getElementById("detail-synopsis"), book);
+    if (book.synopsis === undefined) loadBookDetails(book, data.authors[authorKey].name);
+
+    detailPanel.classList.add("open");
+    detailPanel.setAttribute("aria-hidden", "false");
+    backdropEl.classList.add("open");
+  }
+
+  function closeDetail() {
+    detailAuthorKey = null;
+    detailBookKey = null;
+    detailPanel.classList.remove("open");
+    detailPanel.setAttribute("aria-hidden", "true");
+    backdropEl.classList.remove("open");
+    if (currentAuthorKey && data.authors[currentAuthorKey] && document.getElementById("book-area")) {
+      renderBookArea(data.authors[currentAuthorKey]);
+    }
   }
 
   function renderSynopsis(el, book) {
@@ -413,10 +586,10 @@
     }
   }
 
-  async function loadBookDetails(book, authorName, row) {
-    const synopsisEl = row.querySelector(".synopsis");
-    synopsisEl.textContent = "";
-    synopsisEl.className = "synopsis loading";
+  async function loadBookDetails(book, authorName) {
+    const synEl = document.getElementById("detail-synopsis");
+    synEl.textContent = "";
+    synEl.className = "synopsis loading";
 
     let gb = null;
     try {
@@ -425,19 +598,21 @@
       console.warn("Google Books indisponible", err);
     }
 
-    const applyResult = () => {
+    const apply = () => {
       if (gb && gb.title && normalizeTitle(gb.title) !== normalizeTitle(book.title)) {
         book.titleFr = gb.title;
-        row.querySelector(".book-title").textContent = book.titleFr;
-        renderTitleHint(row.querySelector(".title-original"), book);
+        if (detailBookKey === book.key) {
+          document.getElementById("detail-title").textContent = book.titleFr;
+          renderTitleHint(document.getElementById("detail-original"), book);
+        }
       }
       saveData();
-      renderSynopsis(synopsisEl, book);
+      if (detailBookKey === book.key) renderSynopsis(synEl, book);
     };
 
     if (gb && gb.description) {
       book.synopsis = gb.description;
-      applyResult();
+      apply();
       return;
     }
 
@@ -447,127 +622,83 @@
       const json = await res.json();
       const desc = json.description;
       book.synopsis = typeof desc === "string" ? desc : desc && desc.value ? desc.value : "";
-      applyResult();
+      apply();
     } catch (err) {
       console.error(err);
-      synopsisEl.textContent = "Résumé indisponible (hors ligne ?)";
-      synopsisEl.className = "synopsis";
+      if (detailBookKey === book.key) {
+        synEl.textContent = "Résumé indisponible (hors ligne ?)";
+        synEl.className = "synopsis";
+      }
     }
   }
 
-  function updateBadges(scope, book) {
-    const statusBadge = scope.querySelector(".badge-status");
-    statusBadge.textContent = STATUS_LABELS[book.status];
-    statusBadge.dataset.status = book.status;
-    const ownedBadge = scope.querySelector(".badge-owned");
-    ownedBadge.hidden = !book.owned;
-  }
-
-  function setStars(starsEl, rating) {
-    starsEl.dataset.rating = rating || 0;
-    starsEl.querySelectorAll(".star").forEach((s) => {
-      s.classList.toggle("on", Number(s.dataset.value) <= (rating || 0));
+  document.querySelectorAll(".stamp-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const book = currentDetailBook();
+      if (!book) return;
+      book.status = btn.dataset.status;
+      document.querySelectorAll(".stamp-btn").forEach((s) => s.classList.toggle("active", s === btn));
+      saveData();
     });
-  }
+  });
 
-  function handleBookFieldChange(e, authorKey) {
-    const row = e.target.closest(".book-row");
-    if (!row) return;
-    const book = data.authors[authorKey].books[row.dataset.workKey];
+  document.querySelectorAll("#detail-stars button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const book = currentDetailBook();
+      if (!book) return;
+      const v = Number(btn.dataset.value);
+      book.rating = book.rating === v ? null : v;
+      document.querySelectorAll("#detail-stars button").forEach((s) => s.classList.toggle("on", Number(s.dataset.value) <= (book.rating || 0)));
+      saveData();
+    });
+  });
+
+  document.getElementById("detail-owned").addEventListener("change", (e) => {
+    const book = currentDetailBook();
     if (!book) return;
-
-    if (e.target.classList.contains("f-owned")) {
-      book.owned = e.target.checked;
-      updateBadges(row, book);
-      saveData();
-    } else if (e.target.classList.contains("f-status")) {
-      book.status = e.target.value;
-      updateBadges(row, book);
-      saveData();
-    }
-  }
-
-  const debouncedFields = { "f-review": "review", "f-series": "series" };
-  const inputTimers = new WeakMap();
-  function handleBookFieldInput(e, authorKey) {
-    const prop = Object.keys(debouncedFields).find((cls) => e.target.classList.contains(cls));
-    if (!prop) return;
-    const row = e.target.closest(".book-row");
-    const book = data.authors[authorKey].books[row.dataset.workKey];
-    if (!book) return;
-    clearTimeout(inputTimers.get(e.target));
-    const value = e.target.value;
-    inputTimers.set(
-      e.target,
-      setTimeout(() => {
-        book[debouncedFields[prop]] = value;
-        saveData();
-      }, 400)
-    );
-  }
-
-  function handleBookListClick(e, authorKey) {
-    const row = e.target.closest(".book-row");
-    if (!row) return;
-    const book = data.authors[authorKey].books[row.dataset.workKey];
-    if (!book) return;
-
-    const star = e.target.closest(".star");
-    if (star) {
-      e.preventDefault();
-      const value = Number(star.dataset.value);
-      book.rating = book.rating === value ? null : value;
-      setStars(row.querySelector(".stars"), book.rating);
-      saveData();
-      return;
-    }
-
-    if (e.target.closest(".star-clear")) {
-      e.preventDefault();
-      book.rating = null;
-      setStars(row.querySelector(".stars"), null);
-      saveData();
-      return;
-    }
-
-    if (e.target.closest(".btn-remove-book")) {
-      e.preventDefault();
-      if (confirm(`Retirer « ${book.title} » de votre liste ?`)) {
-        delete data.authors[authorKey].books[row.dataset.workKey];
-        saveData();
-        renderBookList(authorKey);
-      }
-    }
-  }
-
-  async function refreshAuthorWorks(authorKey) {
-    const author = data.authors[authorKey];
-    toast("Actualisation…");
-    try {
-      const works = await fetchAuthorWorks(authorKey);
-      let added = 0;
-      for (const w of works) {
-        if (!author.books[w.key]) {
-          author.books[w.key] = newBookEntry(w);
-          added++;
-        }
-      }
-      saveData();
-      renderBookList(authorKey);
-      toast(added ? `${added} nouveau(x) roman(s) ajouté(s)` : "Aucun nouveau roman");
-    } catch (err) {
-      console.error(err);
-      toast("Échec de l'actualisation (hors ligne ?)");
-    }
-  }
-
-  function deleteAuthor(authorKey) {
-    const author = data.authors[authorKey];
-    if (!confirm(`Supprimer « ${author.name} » et toutes les données associées ?`)) return;
-    delete data.authors[authorKey];
+    book.owned = e.target.checked;
     saveData();
-    navigate("#/");
-  }
+  });
+
+  let seriesTimer = null;
+  document.getElementById("detail-series-field").addEventListener("input", (e) => {
+    const book = currentDetailBook();
+    if (!book) return;
+    clearTimeout(seriesTimer);
+    const value = e.target.value;
+    seriesTimer = setTimeout(() => {
+      book.series = value;
+      saveData();
+    }, 400);
+  });
+
+  let reviewTimer = null;
+  document.getElementById("detail-review").addEventListener("input", (e) => {
+    const book = currentDetailBook();
+    if (!book) return;
+    clearTimeout(reviewTimer);
+    const value = e.target.value;
+    reviewTimer = setTimeout(() => {
+      book.review = value;
+      saveData();
+    }, 400);
+  });
+
+  document.getElementById("detail-remove").addEventListener("click", () => {
+    const book = currentDetailBook();
+    if (!book) return;
+    if (confirm(`Retirer « ${book.title} » de votre liste ?`)) {
+      delete data.authors[detailAuthorKey].books[detailBookKey];
+      saveData();
+      closeDetail();
+    }
+  });
+
+  document.getElementById("detail-close").addEventListener("click", closeDetail);
+  backdropEl.addEventListener("click", closeDetail);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && detailPanel.classList.contains("open")) closeDetail();
+  });
 
   // ---------- Author search ----------
 
@@ -611,8 +742,10 @@
         btn.className = "search-result-item";
         const already = !!data.authors[doc.key];
         btn.innerHTML = `
-          <div class="sr-name">${escapeHtml(doc.name)}${already ? " ✓ suivi" : ""}</div>
-          <div class="sr-sub">${doc.work_count || 0} œuvre(s)${doc.top_work ? " · ex : " + escapeHtml(doc.top_work) : ""}</div>
+          <span>
+            <span class="sr-name">${escapeHtml(doc.name)}${already ? " ✓ suivi" : ""}</span><br>
+            <span class="sr-sub">${doc.work_count || 0} œuvre(s)${doc.top_work ? " · ex : " + escapeHtml(doc.top_work) : ""}</span>
+          </span>
         `;
         btn.addEventListener("click", () => selectAuthor(doc));
         searchResults.appendChild(btn);
@@ -622,12 +755,6 @@
       console.error(err);
       searchResults.innerHTML = '<div class="search-result-empty">Recherche indisponible (hors ligne ?)</div>';
     }
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
   }
 
   async function selectAuthor(doc) {
