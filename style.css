@@ -217,48 +217,43 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
   font-size: 11.5px;
 }
 
-/* ---------- Home ---------- */
-.author-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 14px;
-}
+/* ---------- Home (library) ---------- */
+.library-section { margin-bottom: 32px; }
+.library-section:last-of-type { margin-bottom: 20px; }
 
-.author-card {
+.library-section-head {
   display: flex;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--paper-line);
-  border-radius: var(--r);
-  background: var(--paper-raised);
-  text-align: left;
-  align-items: flex-start;
-  box-shadow: var(--shadow-1);
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--paper-line);
 }
-.author-card:hover { border-color: var(--brass); }
-.author-card .ac-cover { display: block; width: 54px; height: 80px; flex: none; border-radius: 2px; overflow: hidden; box-shadow: var(--shadow-1); background: var(--paper); }
-.author-card .ac-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.author-card .ac-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.author-card .ac-name { font-family: "Newsreader", serif; font-size: 16.5px; font-weight: 600; line-height: 1.25; }
-.stat-line { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink-soft); }
-.meter { height: 4px; border-radius: 2px; background: var(--paper-line); overflow: hidden; }
-.meter i { display: block; height: 100%; background: var(--st-done); }
+.library-section-title {
+  font-family: "Newsreader", serif;
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.library-section-title:hover { color: var(--accent); }
 
-.ghost-card {
+.add-author-banner {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  width: 100%;
+  padding: 14px;
   border: 1.5px dashed var(--paper-line);
   border-radius: var(--r);
   background: none;
   color: var(--ink-soft);
-  min-height: 108px;
-  font-size: 13px;
+  font-size: 13.5px;
 }
-.ghost-card:hover { border-color: var(--accent); color: var(--accent); }
-.ghost-plus { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: 15px; }
+.add-author-banner:hover { border-color: var(--accent); color: var(--accent); }
+.ghost-plus { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: 14px; flex: none; }
 
 .empty-state {
   text-align: center;

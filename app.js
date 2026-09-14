@@ -4,14 +4,52 @@
   const STORAGE_KEY = "tsundoku-data";
   const STATUS_LABELS = { "to-read": "À lire", reading: "En cours", done: "Terminé" };
 
+  // Open Library sometimes catalogs the same real author under several
+  // distinct author records (different OL id, different partial
+  // bibliography). We track authors by a slug of their name instead of by
+  // OL id, so adding a second search result for an already-tracked author
+  // merges its books in rather than creating a duplicate entry.
+  function authorSlug(name) {
+    return (name || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
   // ---------- Storage ----------
+
+  function migrateAuthors(authors) {
+    const migrated = {};
+    for (const old of Object.values(authors || {})) {
+      if (!old || !old.name) continue;
+      const slug = authorSlug(old.name);
+      const olKeys = old.olKeys || (old.key ? [old.key] : []);
+      if (!migrated[slug]) {
+        migrated[slug] = {
+          key: slug,
+          name: old.name,
+          olKeys: [...olKeys],
+          addedAt: old.addedAt || new Date().toISOString(),
+          books: { ...(old.books || {}) },
+        };
+      } else {
+        const target = migrated[slug];
+        for (const k of olKeys) if (!target.olKeys.includes(k)) target.olKeys.push(k);
+        for (const [bk, bv] of Object.entries(old.books || {})) if (!target.books[bk]) target.books[bk] = bv;
+      }
+    }
+    return migrated;
+  }
 
   function loadData() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return { version: 1, authors: {}, settings: { googleBooksApiKey: "" } };
       const parsed = JSON.parse(raw);
-      if (!parsed.authors) parsed.authors = {};
+      parsed.authors = migrateAuthors(parsed.authors);
       if (!parsed.settings) parsed.settings = { googleBooksApiKey: "" };
       return parsed;
     } catch (e) {
@@ -161,6 +199,15 @@
     return { total, owned, done };
   }
 
+  function sortBooksByYear(books) {
+    return books.slice().sort((a, b) => {
+      if (a.year && b.year && a.year !== b.year) return a.year.localeCompare(b.year);
+      if (a.year && !b.year) return -1;
+      if (!a.year && b.year) return 1;
+      return displayTitle(a).localeCompare(displayTitle(b), "fr", { sensitivity: "base" });
+    });
+  }
+
   function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str;
@@ -231,40 +278,52 @@
       return;
     }
 
-    const title = document.createElement("div");
-    title.className = "section-title";
-    title.textContent = "Ma bibliothèque";
-    app.appendChild(title);
+    for (const author of authors) app.appendChild(buildLibrarySection(author));
 
-    const grid = document.createElement("div");
-    grid.className = "author-grid";
-    const tpl = document.getElementById("tpl-author-card");
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "add-author-banner";
+    addBtn.innerHTML = '<span class="ghost-plus">+</span>Rechercher un nouvel auteur';
+    addBtn.addEventListener("click", () => searchInput.focus());
+    app.appendChild(addBtn);
+  }
 
-    for (const author of authors) {
-      const stats = authorStats(author);
-      const node = tpl.content.cloneNode(true);
-      const card = node.querySelector(".author-card");
-      const firstBook = Object.values(author.books || {})[0];
-      const img = node.querySelector(".ac-cover img");
-      if (firstBook) img.src = coverSrc(firstBook, "S");
-      else img.remove();
-      node.querySelector(".ac-name").textContent = author.name;
-      node.querySelector(".stat-line").textContent =
-        stats.total === 0 ? "Aucun roman" : `${stats.owned}/${stats.total} possédés · ${stats.done}/${stats.total} lus`;
-      const pct = stats.total ? Math.round((stats.done / stats.total) * 100) : 0;
-      node.querySelector(".meter i").style.width = pct + "%";
-      card.addEventListener("click", () => navigate(`#/author/${encodeURIComponent(author.key)}`));
-      grid.appendChild(node);
+  function buildLibrarySection(author) {
+    const stats = authorStats(author);
+
+    const section = document.createElement("section");
+    section.className = "library-section";
+
+    const head = document.createElement("div");
+    head.className = "library-section-head";
+    const link = document.createElement("a");
+    link.className = "library-section-title";
+    link.href = `#/author/${encodeURIComponent(author.key)}`;
+    link.textContent = author.name;
+    head.appendChild(link);
+    const statsWrap = document.createElement("div");
+    statsWrap.className = "author-stats";
+    statsWrap.innerHTML = `
+      <div class="astat"><b>${stats.owned}/${stats.total}</b><br>possédés</div>
+      <div class="astat"><b>${stats.done}/${stats.total}</b><br>terminés</div>
+    `;
+    head.appendChild(statsWrap);
+    section.appendChild(head);
+
+    const books = sortBooksByYear(Object.values(author.books || {}));
+    if (books.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.innerHTML = "<p>Aucun roman trouvé pour cet auteur.</p>";
+      section.appendChild(empty);
+    } else {
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      for (const b of books) grid.appendChild(buildBookCard(b, author));
+      section.appendChild(grid);
     }
 
-    const ghost = document.createElement("button");
-    ghost.type = "button";
-    ghost.className = "ghost-card";
-    ghost.innerHTML = '<span class="ghost-plus">+</span>Rechercher un nouvel auteur';
-    ghost.addEventListener("click", () => searchInput.focus());
-    grid.appendChild(ghost);
-
-    app.appendChild(grid);
+    return section;
   }
 
   // ---------- Settings view ----------
@@ -400,14 +459,13 @@
       const q = withinQuery.toLowerCase();
       books = books.filter((b) => displayTitle(b).toLowerCase().includes(q) || b.title.toLowerCase().includes(q));
     }
-    books.sort((a, b) => {
-      if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
-      if (sortBy === "title") return displayTitle(a).localeCompare(displayTitle(b), "fr", { sensitivity: "base" });
-      if (a.year && b.year && a.year !== b.year) return a.year.localeCompare(b.year);
-      if (a.year && !b.year) return -1;
-      if (!a.year && b.year) return 1;
-      return a.title.localeCompare(b.title, "fr", { sensitivity: "base" });
-    });
+    if (sortBy === "rating") {
+      books = books.slice().sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else if (sortBy === "title") {
+      books = books.slice().sort((a, b) => displayTitle(a).localeCompare(displayTitle(b), "fr", { sensitivity: "base" }));
+    } else {
+      books = sortBooksByYear(books);
+    }
     return books;
   }
 
@@ -487,13 +545,17 @@
   function refreshAuthorWorks(authorKey) {
     const author = data.authors[authorKey];
     toast("Actualisation…");
-    fetchAuthorWorks(authorKey)
-      .then((works) => {
+    // An author can have several OL ids (Open Library sometimes splits one
+    // real author into multiple records) — refresh all of them.
+    Promise.all(author.olKeys.map((k) => fetchAuthorWorks(k).catch(() => [])))
+      .then((results) => {
         let added = 0;
-        for (const w of works) {
-          if (!author.books[w.key]) {
-            author.books[w.key] = newBookEntry(w);
-            added++;
+        for (const works of results) {
+          for (const w of works) {
+            if (!author.books[w.key]) {
+              author.books[w.key] = newBookEntry(w);
+              added++;
+            }
           }
         }
         saveData();
@@ -784,7 +846,7 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "search-result-item";
-        const already = !!data.authors[doc.key];
+        const already = !!data.authors[authorSlug(doc.name)];
         btn.innerHTML = `
           <span>
             <span class="sr-name">${escapeHtml(doc.name)}${already ? " ✓ suivi" : ""}</span><br>
@@ -806,19 +868,37 @@
     searchResults.hidden = true;
     searchResults.innerHTML = "";
 
-    if (data.authors[doc.key]) {
-      navigate(`#/author/${encodeURIComponent(doc.key)}`);
+    const slug = authorSlug(doc.name);
+    const existing = data.authors[slug];
+
+    if (existing && existing.olKeys.includes(doc.key)) {
+      // This exact Open Library record is already tracked — nothing to fetch.
+      navigate(`#/author/${encodeURIComponent(slug)}`);
       return;
     }
 
-    toast("Récupération des romans…");
+    toast(existing ? "Recherche de nouveaux romans…" : "Récupération des romans…");
     try {
       const works = await fetchAuthorWorks(doc.key);
-      const books = {};
-      for (const w of works) books[w.key] = newBookEntry(w);
-      data.authors[doc.key] = { key: doc.key, name: doc.name, addedAt: new Date().toISOString(), books };
-      saveData();
-      navigate(`#/author/${encodeURIComponent(doc.key)}`);
+      if (existing) {
+        existing.olKeys.push(doc.key);
+        let added = 0;
+        for (const w of works) {
+          if (!existing.books[w.key]) {
+            existing.books[w.key] = newBookEntry(w);
+            added++;
+          }
+        }
+        saveData();
+        navigate(`#/author/${encodeURIComponent(slug)}`);
+        toast(added ? `${added} nouveau(x) roman(s) ajouté(s) à ${existing.name}` : `Aucun roman de plus pour ${existing.name}`);
+      } else {
+        const books = {};
+        for (const w of works) books[w.key] = newBookEntry(w);
+        data.authors[slug] = { key: slug, name: doc.name, olKeys: [doc.key], addedAt: new Date().toISOString(), books };
+        saveData();
+        navigate(`#/author/${encodeURIComponent(slug)}`);
+      }
     } catch (err) {
       console.error(err);
       toast("Impossible de récupérer les romans (hors ligne ?)");
