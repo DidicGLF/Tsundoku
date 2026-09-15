@@ -1,4 +1,4 @@
-const CACHE_NAME = "tsundoku-v1";
+const CACHE_NAME = "tsundoku-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -31,18 +31,18 @@ self.addEventListener("fetch", (event) => {
   // Only manage same-origin app shell requests; let API/cover requests go straight to the network.
   if (url.origin !== self.location.origin) return;
 
+  // Network-first: always serve the current app shell when online (this app
+  // is under active development), and only fall back to the cache — so the
+  // app still opens — when there's no connection.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const fetchPromise = fetch(req)
-        .then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
-          }
-          return res;
-        })
-        .catch(() => cached || caches.match("./index.html"));
-      return cached || fetchPromise;
-    })
+    fetch(req)
+      .then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req).then((cached) => cached || caches.match("./index.html")))
   );
 });

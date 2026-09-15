@@ -444,14 +444,28 @@
     const input = document.getElementById("gb-key");
     input.value = data.settings.googleBooksApiKey || "";
 
+    // Auto-save like every other field in the app, so leaving the page
+    // without clicking "Enregistrer" doesn't silently lose the key.
+    let keyTimer = null;
+    input.addEventListener("input", () => {
+      clearTimeout(keyTimer);
+      const value = input.value.trim();
+      keyTimer = setTimeout(() => {
+        data.settings.googleBooksApiKey = value;
+        saveData();
+      }, 400);
+    });
+
     document.getElementById("settings-form").addEventListener("submit", (e) => {
       e.preventDefault();
+      clearTimeout(keyTimer);
       data.settings.googleBooksApiKey = input.value.trim();
       saveData();
       toast("Réglages enregistrés");
     });
 
     document.getElementById("btn-clear-key").addEventListener("click", () => {
+      clearTimeout(keyTimer);
       input.value = "";
       data.settings.googleBooksApiKey = "";
       saveData();
