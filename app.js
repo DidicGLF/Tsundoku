@@ -81,7 +81,15 @@
   }
 
   function saveData() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      // Safari in private/incognito mode (and a full storage quota) makes
+      // localStorage.setItem throw instead of failing silently — without
+      // this, nothing would warn the user that nothing is being saved.
+      console.error("Échec de la sauvegarde", err);
+      toast("Impossible d'enregistrer (navigation privée ou stockage plein ?)");
+    }
   }
 
   let data = loadData();
