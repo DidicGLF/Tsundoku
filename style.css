@@ -218,6 +218,39 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
 }
 
 /* ---------- Home (library) ---------- */
+.library-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.library-main { flex: 1; min-width: 0; }
+
+.az-index {
+  flex: none;
+  width: 20px;
+  position: sticky;
+  top: 68px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9.5px;
+  line-height: 1.5;
+  max-height: calc(100vh - 88px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.az-index::-webkit-scrollbar { display: none; }
+.az-index button {
+  background: none;
+  border: none;
+  padding: 1px 0;
+  width: 100%;
+  color: var(--ink-soft);
+}
+.az-index button:hover:not(:disabled) { color: var(--accent); font-weight: 600; }
+.az-index button:disabled { color: var(--paper-line); cursor: default; }
+
 .library-section { margin-bottom: 32px; }
 .library-section:last-of-type { margin-bottom: 20px; }
 

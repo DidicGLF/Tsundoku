@@ -19,6 +19,28 @@
       .replace(/^-+|-+$/g, "");
   }
 
+  // Libraries and bookshops shelve fiction by the author's surname, not
+  // their given name \u2014 "Eddings, David" under E, not D. We keep the name
+  // as fetched (e.g. "David Eddings") for display, but sort and index by
+  // its last word.
+  function authorSurname(name) {
+    const parts = (name || "").trim().split(/\s+/);
+    return parts[parts.length - 1] || "";
+  }
+
+  function librarySortKey(name) {
+    const parts = (name || "").trim().split(/\s+/);
+    if (parts.length < 2) return name || "";
+    return `${parts[parts.length - 1]} ${parts.slice(0, -1).join(" ")}`;
+  }
+
+  function surnameInitial(name) {
+    const s = authorSurname(name)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    return s ? s[0].toUpperCase() : "#";
+  }
+
   // ---------- Storage ----------
 
   function migrateAuthors(authors) {
@@ -266,7 +288,7 @@
   function renderHomeView() {
     currentAuthorKey = null;
     const authors = Object.values(data.authors).sort((a, b) =>
-      a.name.localeCompare(b.name, "fr", { sensitivity: "base" })
+      librarySortKey(a.name).localeCompare(librarySortKey(b.name), "fr", { sensitivity: "base" })
     );
 
     app.innerHTML = "";
@@ -280,6 +302,12 @@
       return;
     }
 
+    const layout = document.createElement("div");
+    layout.className = "library-layout";
+
+    const main = document.createElement("div");
+    main.className = "library-main";
+
     const rail = document.createElement("div");
     rail.className = "rail";
     rail.innerHTML = `<button type="button" class="chip${onlyMissingHome ? " active" : ""}" id="only-missing-chip">Afficher seulement ce qu'il me manque</button>`;
@@ -288,16 +316,44 @@
       e.currentTarget.classList.toggle("active", onlyMissingHome);
       renderHomeView();
     });
-    app.appendChild(rail);
+    main.appendChild(rail);
 
-    for (const author of authors) app.appendChild(buildLibrarySection(author));
+    for (const author of authors) main.appendChild(buildLibrarySection(author));
 
     const addBtn = document.createElement("button");
     addBtn.type = "button";
     addBtn.className = "add-author-banner";
     addBtn.innerHTML = '<span class="ghost-plus">+</span>Rechercher un nouvel auteur';
     addBtn.addEventListener("click", () => searchInput.focus());
-    app.appendChild(addBtn);
+    main.appendChild(addBtn);
+
+    layout.appendChild(main);
+
+    // Libraries shelve by surname — jump straight to a letter, same as a
+    // bookshop's shelf-end labels, instead of scrolling past everything.
+    if (authors.length >= 5) {
+      const present = new Set(authors.map((a) => surnameInitial(a.name)));
+      const nav = document.createElement("nav");
+      nav.className = "az-index";
+      nav.setAttribute("aria-label", "Aller à la lettre");
+      for (const letter of "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+        const has = present.has(letter);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = letter;
+        btn.disabled = !has;
+        if (has) {
+          btn.addEventListener("click", () => {
+            const target = document.querySelector(`.library-section[data-letter="${letter}"]`);
+            if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }
+        nav.appendChild(btn);
+      }
+      layout.appendChild(nav);
+    }
+
+    app.appendChild(layout);
 
     // Silently check for new releases from authors we haven't checked
     // recently, and drop them into the page without disturbing the reader.
@@ -321,6 +377,7 @@
     const section = document.createElement("section");
     section.className = "library-section";
     section.dataset.author = author.key;
+    section.dataset.letter = surnameInitial(author.name);
 
     const head = document.createElement("div");
     head.className = "library-section-head";
