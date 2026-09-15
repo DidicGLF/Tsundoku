@@ -66,17 +66,30 @@
     return migrated;
   }
 
+  function emptyData() {
+    return { version: 1, authors: {}, settings: { googleBooksApiKey: "" } };
+  }
+
+  // Shared by loading from localStorage and by restoring an imported backup
+  // file, so an older/partial JSON shape gets the same defaulting either way.
+  function normalizeData(parsed) {
+    if (!parsed || typeof parsed !== "object" || !parsed.authors || typeof parsed.authors !== "object") {
+      throw new Error("Format de données invalide");
+    }
+    parsed.authors = migrateAuthors(parsed.authors);
+    if (!parsed.settings) parsed.settings = { googleBooksApiKey: "" };
+    if (!parsed.version) parsed.version = 1;
+    return parsed;
+  }
+
   function loadData() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { version: 1, authors: {}, settings: { googleBooksApiKey: "" } };
-      const parsed = JSON.parse(raw);
-      parsed.authors = migrateAuthors(parsed.authors);
-      if (!parsed.settings) parsed.settings = { googleBooksApiKey: "" };
-      return parsed;
+      if (!raw) return emptyData();
+      return normalizeData(JSON.parse(raw));
     } catch (e) {
       console.error("Lecture des données impossible, réinitialisation.", e);
-      return { version: 1, authors: {}, settings: { googleBooksApiKey: "" } };
+      return emptyData();
     }
   }
 
@@ -93,6 +106,48 @@
   }
 
   let data = loadData();
+
+  // Browser storage (localStorage) can be wiped by the browser itself — a
+  // "clear data on close" privacy setting, switching devices, reinstalling
+  // the browser. A downloaded backup file lives in the phone's own Fichiers/
+  // Downloads storage instead, which none of that touches.
+  function exportData() {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tsundoku-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast("Sauvegarde téléchargée");
+  }
+
+  function importDataFromFile(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try {
+        parsed = normalizeData(JSON.parse(reader.result));
+      } catch (err) {
+        console.error(err);
+        toast("Fichier de sauvegarde invalide");
+        return;
+      }
+      const authorCount = Object.keys(parsed.authors).length;
+      if (!confirm(`Remplacer votre bibliothèque actuelle par cette sauvegarde (${authorCount} auteur(s)) ? Cette action est irréversible.`)) {
+        return;
+      }
+      data = parsed;
+      saveData();
+      location.hash = "#/";
+      renderHomeView();
+      toast("Bibliothèque restaurée");
+    };
+    reader.onerror = () => toast("Impossible de lire le fichier");
+    reader.readAsText(file);
+  }
 
   // ---------- Open Library API ----------
 
@@ -430,6 +485,21 @@
     app.innerHTML = `
       <div class="crumbs"><a href="#/">Bibliothèque</a><span>›</span><span>Réglages</span></div>
       <div class="section-title">Réglages</div>
+
+      <p class="d-label">Sauvegarde</p>
+      <p class="settings-help">
+        Vos données ne vivent que dans ce navigateur — un réglage « effacer les données à la
+        fermeture », un changement de téléphone ou de navigateur peut les faire disparaître.
+        Exportez régulièrement un fichier de sauvegarde (il est enregistré dans vos fichiers/
+        téléchargements, à l'abri de ça) pour pouvoir tout restaurer en cas de besoin.
+      </p>
+      <div class="author-actions">
+        <button type="button" class="btn btn-primary" id="btn-export">📤 Exporter ma bibliothèque</button>
+        <button type="button" class="btn" id="btn-import">📥 Importer une sauvegarde</button>
+        <input type="file" id="import-file" accept="application/json" hidden>
+      </div>
+
+      <p class="d-label" style="margin-top:28px">Google Books (optionnel)</p>
       <p class="settings-help">
         Optionnel : ajoutez une clé API Google Books pour obtenir automatiquement le titre et le
         résumé en français d'un roman quand Open Library ne les a pas (son résumé est souvent en
@@ -478,6 +548,14 @@
       data.settings.googleBooksApiKey = "";
       saveData();
       toast("Clé retirée");
+    });
+
+    document.getElementById("btn-export").addEventListener("click", exportData);
+    const importFile = document.getElementById("import-file");
+    document.getElementById("btn-import").addEventListener("click", () => importFile.click());
+    importFile.addEventListener("change", () => {
+      if (importFile.files[0]) importDataFromFile(importFile.files[0]);
+      importFile.value = "";
     });
   }
 
