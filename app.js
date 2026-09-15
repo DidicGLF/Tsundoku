@@ -964,10 +964,15 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "search-result-item";
-        const already = !!data.authors[authorSlug(doc.name)];
+        const existingAuthor = data.authors[authorSlug(doc.name)];
+        const fullyMerged = !!(existingAuthor && existingAuthor.olKeys.includes(doc.key));
+        const partiallyMerged = !!existingAuthor && !fullyMerged;
+        let badge = "";
+        if (fullyMerged) badge = " ✓ suivi";
+        else if (partiallyMerged) badge = " · auteur déjà suivi, clic pour compléter";
         btn.innerHTML = `
           <span>
-            <span class="sr-name">${escapeHtml(doc.name)}${already ? " ✓ suivi" : ""}</span><br>
+            <span class="sr-name">${escapeHtml(doc.name)}${badge}</span><br>
             <span class="sr-sub">${doc.work_count || 0} œuvre(s)${doc.top_work ? " · ex : " + escapeHtml(doc.top_work) : ""}</span>
           </span>
         `;
@@ -978,6 +983,21 @@
       if (seq !== searchSeq) return;
       console.error(err);
       searchResults.innerHTML = '<div class="search-result-empty">Recherche indisponible (hors ligne ?)</div>';
+    }
+  }
+
+  // Open Library sometimes splits one real author into several identically
+  // named records, each holding only part of their bibliography (seen with
+  // both David Eddings and Maxime Chattam). Find the other records sharing
+  // this exact name so adding one author pulls in all of them at once,
+  // instead of leaving the reader to notice and click each one.
+  async function findDuplicateAuthorKeys(doc) {
+    try {
+      const candidates = await searchAuthors(doc.name);
+      return candidates.filter((c) => c.name === doc.name && c.key !== doc.key).map((c) => c.key);
+    } catch (err) {
+      console.warn("Recherche de fiches en double impossible", err);
+      return [];
     }
   }
 
@@ -997,26 +1017,26 @@
 
     toast(existing ? "Recherche de nouveaux romans…" : "Récupération des romans…");
     try {
-      const works = await fetchAuthorWorks(doc.key);
-      if (existing) {
-        existing.olKeys.push(doc.key);
-        let added = 0;
-        for (const w of works) {
-          if (!existing.books[w.key]) {
-            existing.books[w.key] = newBookEntry(w);
+      const duplicateKeys = await findDuplicateAuthorKeys(doc);
+      const target = existing || { key: slug, name: doc.name, olKeys: [], addedAt: new Date().toISOString(), books: {} };
+      const keysToFetch = [doc.key, ...duplicateKeys].filter((k) => !target.olKeys.includes(k));
+
+      const resultsPerKey = await Promise.all(keysToFetch.map((k) => fetchAuthorWorks(k).catch(() => [])));
+      let added = 0;
+      keysToFetch.forEach((k, i) => {
+        target.olKeys.push(k);
+        for (const w of resultsPerKey[i]) {
+          if (!target.books[w.key]) {
+            target.books[w.key] = newBookEntry(w);
             added++;
           }
         }
-        saveData();
-        navigate(`#/author/${encodeURIComponent(slug)}`);
-        toast(added ? `${added} nouveau(x) roman(s) ajouté(s) à ${existing.name}` : `Aucun roman de plus pour ${existing.name}`);
-      } else {
-        const books = {};
-        for (const w of works) books[w.key] = newBookEntry(w);
-        data.authors[slug] = { key: slug, name: doc.name, olKeys: [doc.key], addedAt: new Date().toISOString(), books };
-        saveData();
-        navigate(`#/author/${encodeURIComponent(slug)}`);
-      }
+      });
+      target.lastChecked = new Date().toISOString();
+      data.authors[slug] = target;
+      saveData();
+      navigate(`#/author/${encodeURIComponent(slug)}`);
+      if (existing) toast(added ? `${added} nouveau(x) roman(s) ajouté(s) à ${target.name}` : `Aucun roman de plus pour ${target.name}`);
     } catch (err) {
       console.error(err);
       toast("Impossible de récupérer les romans (hors ligne ?)");
