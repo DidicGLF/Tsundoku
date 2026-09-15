@@ -1,67 +1,67 @@
 :root {
-  --paper: #E8E4D8;
-  --paper-raised: #F5F2E8;
-  --paper-line: #D6D0BE;
-  --ink: #1E2A38;
-  --ink-soft: #5B6570;
-  --ink-faint: #8B93A0;
-  --accent: #9C3B2C;
-  --accent-ink: #F5F2E8;
-  --brass: #A97A1F;
-  --brass-soft: rgba(169, 122, 31, .16);
+  --paper: #EFE5D2;
+  --paper-raised: #F8F2E6;
+  --paper-line: #DCCFB4;
+  --ink: #242C3D;
+  --ink-soft: #5C6579;
+  --ink-faint: #8B93A3;
+  --accent: #C34A2E;
+  --accent-ink: #F8F2E6;
+  --brass: #AD7F3E;
+  --brass-soft: rgba(173, 127, 62, .16);
   --st-toread: #6B7280;
   --st-toread-bg: rgba(107, 114, 128, .14);
-  --st-reading: #A97A1F;
-  --st-reading-bg: rgba(169, 122, 31, .16);
-  --st-done: #2B6E5C;
-  --st-done-bg: rgba(43, 110, 92, .15);
-  --danger: #9C3B2C;
-  --shadow-1: 0 1px 2px rgba(30, 20, 10, .08), 0 6px 18px rgba(30, 20, 10, .08);
-  --shadow-2: 0 8px 30px rgba(20, 14, 8, .18);
+  --st-reading: #AD7F3E;
+  --st-reading-bg: rgba(173, 127, 62, .16);
+  --st-done: #405B47;
+  --st-done-bg: rgba(64, 91, 71, .15);
+  --danger: #C34A2E;
+  --shadow-1: 0 1px 2px rgba(30, 20, 10, .1), 0 6px 18px rgba(30, 20, 10, .1);
+  --shadow-2: 0 8px 30px rgba(20, 14, 8, .2);
   --stamp-bg: rgba(255, 255, 255, .55);
   --r: 3px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #141920;
-    --paper-raised: #1D2531;
-    --paper-line: #2B3442;
-    --ink: #ECE7DA;
-    --ink-soft: #A7AEBB;
-    --ink-faint: #727C8C;
-    --accent: #D9694E;
-    --accent-ink: #1B120E;
-    --brass: #D8AE55;
-    --brass-soft: rgba(216, 174, 85, .18);
-    --st-toread: #8B93A0;
-    --st-toread-bg: rgba(139, 147, 160, .16);
-    --st-reading: #D8AE55;
-    --st-reading-bg: rgba(216, 174, 85, .16);
-    --st-done: #4FA98A;
-    --st-done-bg: rgba(79, 169, 138, .16);
+    --paper: #181D28;
+    --paper-raised: #242C3D;
+    --paper-line: #333C50;
+    --ink: #EFE5D2;
+    --ink-soft: #A9AFBD;
+    --ink-faint: #727A8C;
+    --accent: #E2704F;
+    --accent-ink: #1B1410;
+    --brass: #D9AE6C;
+    --brass-soft: rgba(217, 174, 108, .18);
+    --st-toread: #8B93A3;
+    --st-toread-bg: rgba(139, 147, 163, .16);
+    --st-reading: #D9AE6C;
+    --st-reading-bg: rgba(217, 174, 108, .16);
+    --st-done: #6B9573;
+    --st-done-bg: rgba(107, 149, 115, .16);
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 20px rgba(0, 0, 0, .35);
     --shadow-2: 0 12px 34px rgba(0, 0, 0, .5);
     --stamp-bg: rgba(0, 0, 0, .4);
   }
 }
 :root[data-theme="dark"] {
-  --paper: #141920;
-  --paper-raised: #1D2531;
-  --paper-line: #2B3442;
-  --ink: #ECE7DA;
-  --ink-soft: #A7AEBB;
-  --ink-faint: #727C8C;
-  --accent: #D9694E;
-  --accent-ink: #1B120E;
-  --brass: #D8AE55;
-  --brass-soft: rgba(216, 174, 85, .18);
-  --st-toread: #8B93A0;
-  --st-toread-bg: rgba(139, 147, 160, .16);
-  --st-reading: #D8AE55;
-  --st-reading-bg: rgba(216, 174, 85, .16);
-  --st-done: #4FA98A;
-  --st-done-bg: rgba(79, 169, 138, .16);
+  --paper: #181D28;
+  --paper-raised: #242C3D;
+  --paper-line: #333C50;
+  --ink: #EFE5D2;
+  --ink-soft: #A9AFBD;
+  --ink-faint: #727A8C;
+  --accent: #E2704F;
+  --accent-ink: #1B1410;
+  --brass: #D9AE6C;
+  --brass-soft: rgba(217, 174, 108, .18);
+  --st-toread: #8B93A3;
+  --st-toread-bg: rgba(139, 147, 163, .16);
+  --st-reading: #D9AE6C;
+  --st-reading-bg: rgba(217, 174, 108, .16);
+  --st-done: #6B9573;
+  --st-done-bg: rgba(107, 149, 115, .16);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4), 0 6px 20px rgba(0, 0, 0, .35);
   --shadow-2: 0 12px 34px rgba(0, 0, 0, .5);
   --stamp-bg: rgba(0, 0, 0, .4);
@@ -441,7 +441,7 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
 .detail-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .detail-close {
   position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%;
-  border: none; background: rgba(20, 14, 8, .55); color: #F5F2E8; font-size: 15px; display: grid; place-items: center;
+  border: none; background: rgba(20, 14, 8, .55); color: #F8F2E6; font-size: 15px; display: grid; place-items: center;
 }
 .detail-body { padding: 18px 20px; }
 .d-eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--brass); margin: 0 0 6px; }

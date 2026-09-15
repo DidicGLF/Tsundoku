@@ -218,11 +218,12 @@
   // Real Open Library cover when we have one; otherwise a generated
   // "library catalog" placeholder card so the grid never shows a broken image.
 
+  // Same four spine colors as the app icon's stack of books.
   const PALETTES = [
-    { from: "#2C4770", to: "#182640", rule: "#E4C77B" },
-    { from: "#63212D", to: "#391018", rule: "#D8B26A" },
-    { from: "#22503F", to: "#12312A", rule: "#E7DCB8" },
-    { from: "#3A3E44", to: "#1E2124", rule: "#C1543C" },
+    { from: "#2F4D72", to: "#1E3350", rule: "#EFE5D2" },
+    { from: "#405B47", to: "#2A3F30", rule: "#EFE5D2" },
+    { from: "#C34A2E", to: "#8E3220", rule: "#EFE5D2" },
+    { from: "#C7A06C", to: "#9C7A4A", rule: "#242C3D" },
   ];
 
   function paletteFor(key) {
