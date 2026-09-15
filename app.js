@@ -66,8 +66,12 @@
     return migrated;
   }
 
+  function defaultSettings() {
+    return { googleBooksApiKey: "", autoBackup: true, lastAutoBackup: null };
+  }
+
   function emptyData() {
-    return { version: 1, authors: {}, settings: { googleBooksApiKey: "" } };
+    return { version: 1, authors: {}, settings: defaultSettings() };
   }
 
   // Shared by loading from localStorage and by restoring an imported backup
@@ -77,7 +81,7 @@
       throw new Error("Format de données invalide");
     }
     parsed.authors = migrateAuthors(parsed.authors);
-    if (!parsed.settings) parsed.settings = { googleBooksApiKey: "" };
+    parsed.settings = { ...defaultSettings(), ...(parsed.settings || {}) };
     if (!parsed.version) parsed.version = 1;
     return parsed;
   }
@@ -111,7 +115,7 @@
   // "clear data on close" privacy setting, switching devices, reinstalling
   // the browser. A downloaded backup file lives in the phone's own Fichiers/
   // Downloads storage instead, which none of that touches.
-  function exportData() {
+  function exportData(auto) {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -121,7 +125,21 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast("Sauvegarde téléchargée");
+    toast(auto ? "Sauvegarde automatique téléchargée" : "Sauvegarde téléchargée");
+  }
+
+  // Downloads a fresh backup on its own, at most once a day, whenever the
+  // app is opened — the closest thing to "automatic" a static site without
+  // a server can offer (nothing runs while the app isn't open).
+  const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  function maybeAutoBackup() {
+    if (!data.settings.autoBackup) return;
+    if (Object.keys(data.authors).length === 0) return;
+    const last = data.settings.lastAutoBackup;
+    if (last && Date.now() - new Date(last).getTime() < AUTO_BACKUP_INTERVAL_MS) return;
+    exportData(true);
+    data.settings.lastAutoBackup = new Date().toISOString();
+    saveData();
   }
 
   function importDataFromFile(file) {
@@ -432,6 +450,8 @@
         })
         .catch(() => {});
     }
+
+    maybeAutoBackup();
   }
 
   function buildLibrarySection(author) {
@@ -498,6 +518,10 @@
         <button type="button" class="btn" id="btn-import">📥 Importer une sauvegarde</button>
         <input type="file" id="import-file" accept="application/json" hidden>
       </div>
+      <label class="owned-toggle" style="margin-top:12px">
+        <input type="checkbox" id="auto-backup-toggle">
+        Télécharger automatiquement une sauvegarde à l'ouverture de l'app (au plus une fois par jour)
+      </label>
 
       <p class="d-label" style="margin-top:28px">Google Books (optionnel)</p>
       <p class="settings-help">
@@ -550,12 +574,19 @@
       toast("Clé retirée");
     });
 
-    document.getElementById("btn-export").addEventListener("click", exportData);
+    document.getElementById("btn-export").addEventListener("click", () => exportData(false));
     const importFile = document.getElementById("import-file");
     document.getElementById("btn-import").addEventListener("click", () => importFile.click());
     importFile.addEventListener("change", () => {
       if (importFile.files[0]) importDataFromFile(importFile.files[0]);
       importFile.value = "";
+    });
+
+    const autoBackupToggle = document.getElementById("auto-backup-toggle");
+    autoBackupToggle.checked = data.settings.autoBackup;
+    autoBackupToggle.addEventListener("change", () => {
+      data.settings.autoBackup = autoBackupToggle.checked;
+      saveData();
     });
   }
 
