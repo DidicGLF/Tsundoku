@@ -400,9 +400,20 @@ h1, h2, h3 { font-family: "Newsreader", Georgia, serif; margin: 0; text-wrap: ba
 .card-cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .card:hover .card-cover { box-shadow: 0 2px 4px rgba(20, 14, 8, .14), 0 10px 22px rgba(20, 14, 8, .16); }
 .ribbon {
-  position: absolute; top: 0; right: 10px; width: 16px; height: 26px; background: var(--brass);
+  position: absolute; top: 3px; right: 10px; width: 16px; height: 26px; background: var(--brass);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
 }
+/* A brass ribbon can vanish against a same-toned cover (or a tan generated
+   one). A light ring inside a dark ring behind it means one of the two
+   always contrasts with whatever's underneath, light cover or dark. */
+.ribbon::before, .ribbon::after {
+  content: "";
+  position: absolute;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+  z-index: -1;
+}
+.ribbon::before { inset: -3px; background: var(--paper-raised); }
+.ribbon::after { inset: -1.5px; background: var(--ink); }
 .stamp {
   position: absolute; left: 8px; bottom: 8px; font-family: "IBM Plex Mono", monospace; font-size: 9.5px;
   letter-spacing: .06em; text-transform: uppercase; padding: 3px 6px; border-radius: 2px;
