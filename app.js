@@ -177,13 +177,18 @@
     return json.docs || [];
   }
 
-  async function fetchAuthorWorks(authorKey) {
+  async function fetchAuthorWorks(authorKey, allLanguages) {
     // search.json merges editions/translations into one record per work (unlike
     // /authors/{id}/works.json, which lists every translated edition as its own
     // near-duplicate entry) — much cleaner starting list to curate.
-    // language=fre keeps only works that have at least one French edition.
+    // language=fre keeps only works that have at least one French edition —
+    // but Open Library's language tagging is incomplete, so a real French
+    // novel can be missing from that filtered set. allLanguages=true (used by
+    // the "Voir aussi les autres langues" button) drops the filter to fetch
+    // everything instead, for the reader to curate by hand.
     const fields = "key,title,first_publish_year,cover_i,edition_count";
-    const url = `https://openlibrary.org/search.json?author_key=${encodeURIComponent(authorKey)}&language=fre&limit=500&fields=${fields}`;
+    const langParam = allLanguages ? "" : "&language=fre";
+    const url = `https://openlibrary.org/search.json?author_key=${encodeURIComponent(authorKey)}${langParam}&limit=500&fields=${fields}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error("Impossible de récupérer les romans");
     const json = await res.json();
@@ -619,6 +624,7 @@
       </div>
       <div class="author-actions">
         <button type="button" class="btn" id="btn-refresh">🔄 Actualiser la liste</button>
+        <button type="button" class="btn" id="btn-all-languages">🌐 Voir aussi les autres langues</button>
         <button type="button" class="btn btn-danger" id="btn-delete-author">🗑 Supprimer cet auteur</button>
       </div>
       <div class="rail">
@@ -650,6 +656,7 @@
     renderBookArea(author);
 
     document.getElementById("btn-refresh").addEventListener("click", () => refreshAuthorWorks(authorKey));
+    document.getElementById("btn-all-languages").addEventListener("click", () => fetchOtherLanguages(authorKey));
     document.getElementById("btn-delete-author").addEventListener("click", () => deleteAuthor(authorKey));
 
     document.getElementById("group-seg").addEventListener("click", (e) => {
@@ -798,8 +805,8 @@
   // real author into multiple records) — check all of them and merge in
   // anything new. Shared by the manual "Actualiser" button and the silent
   // background check.
-  async function mergeAuthorWorks(author) {
-    const results = await Promise.all(author.olKeys.map((k) => fetchAuthorWorks(k).catch(() => [])));
+  async function mergeAuthorWorks(author, allLanguages) {
+    const results = await Promise.all(author.olKeys.map((k) => fetchAuthorWorks(k, allLanguages).catch(() => [])));
     let added = 0;
     for (const works of results) {
       for (const w of works) {
@@ -809,7 +816,7 @@
         }
       }
     }
-    author.lastChecked = new Date().toISOString();
+    if (!allLanguages) author.lastChecked = new Date().toISOString();
     saveData();
     return added;
   }
@@ -825,6 +832,24 @@
       .catch((err) => {
         console.error(err);
         toast("Échec de l'actualisation (hors ligne ?)");
+      });
+  }
+
+  function fetchOtherLanguages(authorKey) {
+    const author = data.authors[authorKey];
+    toast("Recherche dans toutes les langues…");
+    mergeAuthorWorks(author, true)
+      .then((added) => {
+        renderBookArea(author);
+        toast(
+          added
+            ? `${added} œuvre(s) de plus (à trier — retirez celles qui ne sont pas des romans en français)`
+            : "Rien de plus trouvé dans les autres langues"
+        );
+      })
+      .catch((err) => {
+        console.error(err);
+        toast("Échec de la recherche (hors ligne ?)");
       });
   }
 
@@ -1162,7 +1187,7 @@
         btn.innerHTML = `
           <span>
             <span class="sr-name">${escapeHtml(doc.name)}${badge}</span><br>
-            <span class="sr-sub">${doc.work_count || 0} œuvre(s)${doc.top_work ? " · ex : " + escapeHtml(doc.top_work) : ""}</span>
+            <span class="sr-sub">${doc.work_count || 0} œuvre(s) toutes langues confondues${doc.top_work ? " · ex : " + escapeHtml(doc.top_work) : ""}</span>
           </span>
         `;
         btn.addEventListener("click", () => selectAuthor(doc));
