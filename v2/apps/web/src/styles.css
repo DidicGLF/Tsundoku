@@ -1,0 +1,123 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #25262b;
+  background: #f7f4ef;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button { font: inherit; }
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 250px 1fr;
+}
+
+.sidebar {
+  padding: 28px 18px;
+  background: #fffdf9;
+  border-right: 1px solid #e3ded5;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 42px; height: 42px; border-radius: 14px;
+  display: grid; place-items: center;
+  background: #5b5f97; color: white; font-weight: 800; font-size: 20px;
+}
+.brand strong { display: block; font-size: 17px; }
+.brand span { color: #74757d; font-size: 12px; }
+
+nav { display: grid; gap: 6px; }
+.nav-item {
+  border: 0; background: transparent; text-align: left;
+  padding: 12px 14px; border-radius: 12px; color: #74757d;
+  cursor: pointer;
+}
+.nav-item:hover { background: #f0ece5; color: #25262b; }
+.nav-item.active { background: #ececf8; color: #454873; font-weight: 700; }
+
+.sync-status {
+  margin-top: auto; display: flex; gap: 10px; align-items: center;
+  padding: 12px; border-radius: 14px; background: #f0ece5;
+}
+.sync-dot { width: 9px; height: 9px; border-radius: 50%; background: #6faf8b; }
+.sync-status strong, .sync-status small { display: block; }
+.sync-status strong { font-size: 13px; }
+.sync-status small { margin-top: 2px; color: #74757d; font-size: 11px; }
+
+.content { padding: 38px clamp(22px, 5vw, 70px); max-width: 1400px; width: 100%; margin: 0 auto; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.eyebrow { color: #74757d; text-transform: uppercase; letter-spacing: .09em; font-size: 11px; font-weight: 800; }
+h1, h2, h3, p { margin-top: 0; }
+h1 { margin: 5px 0 0; font-size: clamp(28px, 4vw, 40px); }
+h2 { margin: 6px 0 8px; font-size: 26px; }
+p { color: #74757d; line-height: 1.55; }
+
+.primary-button, .text-button {
+  border: 0; cursor: pointer; font-weight: 700;
+}
+.primary-button {
+  background: #5b5f97; color: white; padding: 13px 18px;
+  border-radius: 12px; box-shadow: 0 8px 22px rgba(69, 72, 115, .16);
+}
+.text-button { background: transparent; color: #5b5f97; }
+
+.hero {
+  margin-top: 32px; padding: 30px; border-radius: 24px;
+  background: linear-gradient(120deg, #e9e8f5, #f7e7d9);
+  display: flex; justify-content: space-between; align-items: center;
+  min-height: 190px; overflow: hidden;
+}
+.hero h2 { font-size: 32px; }
+.hero-decoration { font-size: 76px; opacity: .8; transform: rotate(-8deg); }
+
+.section { margin-top: 38px; }
+.section-heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 18px; }
+.book-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 18px;
+}
+.book-card {
+  background: #fffdf9; border: 1px solid #e3ded5; border-radius: 18px;
+  padding: 12px; overflow: hidden;
+}
+.book-card img {
+  display: block; width: 100%; aspect-ratio: 2 / 3; object-fit: cover;
+  border-radius: 12px; background: #f0ece5;
+}
+.book-info { padding: 13px 3px 4px; }
+.status {
+  display: inline-block; padding: 5px 8px; border-radius: 999px;
+  background: #f0ece5; color: #74757d; font-size: 10px; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.book-info h3 { margin: 9px 0 4px; font-size: 16px; }
+.book-info p { margin-bottom: 12px; font-size: 13px; }
+.progress { display: flex; align-items: center; gap: 8px; }
+.progress-track { flex: 1; height: 6px; background: #e3ded5; border-radius: 99px; overflow: hidden; }
+.progress-value { height: 100%; background: #5b5f97; border-radius: 99px; }
+.progress span { color: #74757d; font-size: 11px; }
+
+@media (max-width: 800px) {
+  .app-shell { grid-template-columns: 1fr; }
+  .sidebar {
+    position: sticky; top: 0; z-index: 5; padding: 12px 14px;
+    border-right: 0; border-bottom: 1px solid #e3ded5;
+    flex-direction: row; align-items: center; overflow-x: auto;
+  }
+  .sidebar nav { display: flex; }
+  .nav-item { white-space: nowrap; }
+  .sync-status { display: none; }
+  .content { padding: 24px 18px 40px; }
+  .topbar { align-items: flex-start; flex-direction: column; }
+  .primary-button { width: 100%; }
+  .hero { min-height: 160px; padding: 24px; }
+  .hero-decoration { font-size: 52px; }
+}
