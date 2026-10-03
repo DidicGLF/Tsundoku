@@ -1,12 +1,11 @@
 {
-  "name": "tsundoku-v2",
+  "name": "@tsundoku/credentials",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@10.12.4",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "scripts": {
-    "dev": "pnpm --filter @tsundoku/web dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "typecheck": "tsc --noEmit"
   }
 }

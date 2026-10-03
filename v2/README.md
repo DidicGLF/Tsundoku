@@ -1,27 +1,32 @@
-# Tsundoku V2
+# @tsundoku/credentials
 
-V2 est développée en parallèle de la V1.
+Gestion locale des credentials de Tsundoku V2.
 
-## Règle importante
+La clé Google Books est propre à chaque appareil.
 
-La V1 reste la version de production pendant toute la construction et la validation de V2. Aucun fichier racine de la V1 ne doit être supprimé ou remplacé par V2.
+Elle n'est volontairement :
+- pas stockée dans SQLite ;
+- pas stockée dans les paramètres synchronisés ;
+- pas envoyée à PostgreSQL ;
+- pas incluse dans les exports de bibliothèque ;
+- pas enregistrée dans Git.
 
-## Structure
+## Web / PWA
 
-- `apps/` : applications exécutables
-- `packages/types/` : modèles TypeScript partagés
-- `packages/core/` : logique métier
-- `packages/database/` : stockage local SQLite et repositories (prochaine étape)
-- `packages/credentials/` : stockage sécurisé des clés locales (prochaine étape)
-- `packages/book-sources/` : Open Library / Google Books (prochaine étape)
-- `migration/` : migration V1 → V2
+`WebCredentialStore` utilise `localStorage`.
 
-## Démarrage
+Ce stockage n'est pas un coffre-fort : le navigateur doit pouvoir fournir la clé au JavaScript qui effectue les appels Google Books. C'est adapté au modèle personnel prévu pour V2.
 
-La V2 utilise pnpm.
+## Android / Windows
 
-```bash
-cd v2
-pnpm install
-pnpm dev
-```
+Nous ajouterons ensuite des implémentations utilisant le stockage sécurisé natif de chaque plateforme.
+
+Le reste de Tsundoku ne dépend que de `CredentialStore`.
+
+## Parcours utilisateur
+
+Au premier lancement, l'utilisateur pourra :
+1. configurer sa clé Google Books ;
+2. ou continuer sans Google Books.
+
+La bibliothèque locale reste utilisable sans clé.
