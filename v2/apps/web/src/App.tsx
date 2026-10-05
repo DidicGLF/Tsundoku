@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Capacitor } from "@capacitor/core";
+import { App as CapacitorApp } from "@capacitor/app";
 import type { BookSearchResult } from "@tsundoku/book-sources";
 import type { ReadingStatus } from "@tsundoku/database";
 import { searchBooks, type SearchProvider } from "./services/bookSearch";
@@ -121,6 +123,30 @@ export default function App() {
     );
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+  if (!Capacitor.isNativePlatform()) return;
+
+  const listener = CapacitorApp.addListener("backButton", () => {
+    setView(current => {
+      if (current === "detail") {
+        setSelectedId(null);
+        return "library";
+      }
+
+      if (current === "library" || current === "add") {
+        return "home";
+      }
+
+      void CapacitorApp.exitApp();
+      return current;
+    });
+  });
+
+  return () => {
+    void listener.then(handle => handle.remove());
+  };
+}, []);
 
   const isAdded = (b: BookSearchResult) => library.some(x =>
     (b.isbn13 && x.isbn13 === b.isbn13) ||

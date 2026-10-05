@@ -12,6 +12,7 @@
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
     "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "8.1.2",
     "@capacitor/core": "^8.5.2",
     "@tsundoku/book-sources": "workspace:*",
     "@tsundoku/credentials": "workspace:*",
