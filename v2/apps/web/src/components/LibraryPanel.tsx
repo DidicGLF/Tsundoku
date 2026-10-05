@@ -1,0 +1,2 @@
+import type {LocalLibraryBook} from "../services/library";import {BookCard} from "./BookCard";
+export function LibraryPanel({books}:{books:LocalLibraryBook[]}){return <section className="panel"><h2>Ma bibliothèque <small>({books.length})</small></h2>{books.length?<div className="results-grid">{books.map(b=><BookCard key={b.localId} book={b}/>)}</div>:<div className="empty">📚<strong> La bibliothèque attend ses premiers livres.</strong></div>}</section>}
