@@ -1,13 +1,13 @@
 import type { BookSearchResult } from "@tsundoku/book-sources";
 import {
-  SqliteLibraryRepository,
+  SqliteNormalizedLibraryRepository,
   runMigrations,
   type StoredLibraryBook,
   type LibraryBookUpdate
 } from "@tsundoku/database";
 import { WebSqliteAdapter } from "../database/WebSqliteAdapter";
 
-let repositoryPromise: Promise<SqliteLibraryRepository> | null = null;
+let repositoryPromise: Promise<SqliteNormalizedLibraryRepository> | null = null;
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -22,13 +22,13 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, label: string
   });
 }
 
-async function createRepository(): Promise<SqliteLibraryRepository> {
+async function createRepository(): Promise<SqliteNormalizedLibraryRepository> {
   const adapter = await withTimeout(WebSqliteAdapter.create(), 10000, "L'initialisation de SQLite");
   await withTimeout(runMigrations(adapter), 10000, "La migration de la base SQLite");
-  return new SqliteLibraryRepository(adapter);
+  return new SqliteNormalizedLibraryRepository(adapter);
 }
 
-function repository(): Promise<SqliteLibraryRepository> {
+function repository(): Promise<SqliteNormalizedLibraryRepository> {
   repositoryPromise ??= createRepository();
   return repositoryPromise;
 }
@@ -39,9 +39,7 @@ export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
 
 export async function addBookToLibrary(book: BookSearchResult): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  const now = new Date().toISOString();
   await repo.add({
-    id: crypto.randomUUID(),
     source: book.source,
     sourceId: book.sourceId,
     title: book.title,
@@ -53,14 +51,7 @@ export async function addBookToLibrary(book: BookSearchResult): Promise<StoredLi
     pageCount: book.pageCount,
     language: book.language,
     description: book.description,
-    coverUrl: book.coverUrl,
-    status: "TO_READ",
-    favorite: false,
-    owned: true,
-    progressValue: undefined,
-    progressTotal: book.pageCount,
-    addedAt: now,
-    updatedAt: now
+    coverUrl: book.coverUrl
   });
   return repo.list();
 }
