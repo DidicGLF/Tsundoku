@@ -56,6 +56,12 @@ export async function addBookToLibrary(book: BookSearchResult): Promise<StoredLi
   return repo.list();
 }
 
+export async function removeBookFromLibrary(id: string): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  await repo.remove(id);
+  return repo.list();
+}
+
 export async function updateLibraryBook(
   id: string,
   changes: LibraryBookUpdate

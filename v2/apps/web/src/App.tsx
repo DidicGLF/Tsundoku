@@ -8,6 +8,7 @@ import { deleteGoogleBooksApiKey, hasGoogleBooksApiKey, saveGoogleBooksApiKey } 
 import {
   addBookToLibrary,
   initializeLibrary,
+  removeBookFromLibrary,
   updateLibraryBook,
   type LibraryBook
 } from "./services/library";
@@ -82,6 +83,7 @@ export default function App() {
   const [googleKeyConfigured, setGoogleKeyConfigured] = useState(false);
   const [credentialBusy, setCredentialBusy] = useState(false);
   const [credentialMessage, setCredentialMessage] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const selected = library.find(b => b.id === selectedId);
 
@@ -183,6 +185,26 @@ export default function App() {
     if (!selected) return;
     try { setLibrary(await updateLibraryBook(selected.id, changes)); }
     catch (x) { setError(x instanceof Error ? x.message : "Modification impossible."); }
+  }
+
+  async function removeSelectedBook() {
+    if (!selected || deleteBusy) return;
+    const confirmed = window.confirm(
+      `Supprimer « ${selected.title} » de votre bibliothèque ?\n\nCette action retirera également son état de lecture et sa progression.`
+    );
+    if (!confirmed) return;
+
+    setDeleteBusy(true);
+    setError("");
+    try {
+      setLibrary(await removeBookFromLibrary(selected.id));
+      setSelectedId(null);
+      setView("library");
+    } catch (x) {
+      setError(x instanceof Error ? x.message : "Suppression impossible.");
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   async function saveGoogleKey(e: FormEvent) {
@@ -356,6 +378,15 @@ export default function App() {
               <label>Total<input type="number" min="0" value={selected.progressTotal ?? ""} onChange={e => patch({ progressTotal: e.target.value === "" ? 0 : Number(e.target.value) })} /></label>
             </div>
             <p className="meta">{selected.publisher || "Éditeur inconnu"} {selected.publishedYear ? `· ${selected.publishedYear}` : ""} {selected.isbn13 ? `· ISBN ${selected.isbn13}` : ""}</p>
+            <div className="danger-zone">
+              <div>
+                <strong>Supprimer de ma bibliothèque</strong>
+                <p>Retire ce livre, son statut et sa progression de ta bibliothèque.</p>
+              </div>
+              <button type="button" className="danger-button" disabled={deleteBusy} onClick={() => void removeSelectedBook()}>
+                {deleteBusy ? "Suppression…" : "Supprimer"}
+              </button>
+            </div>
           </div>
         </div>
       </section>}

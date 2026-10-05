@@ -157,6 +157,20 @@ export class SqliteNormalizedLibraryRepository {
     });
   }
 
+  async remove(id: string): Promise<void> {
+    const rows = await this.db.query<{ id: string }>(
+      "SELECT id FROM user_books WHERE id = ? AND deleted_at IS NULL LIMIT 1",
+      [id]
+    );
+    if (!rows.length) throw new Error("Livre introuvable dans la bibliothèque.");
+
+    const now = new Date().toISOString();
+    await this.db.execute(
+      "UPDATE user_books SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL",
+      [now, now, id]
+    );
+  }
+
   async update(id: string, changes: LibraryBookUpdate): Promise<void> {
     const rows = await this.db.query<Record<string, unknown>>(
       "SELECT * FROM user_books WHERE id = ? AND deleted_at IS NULL",
