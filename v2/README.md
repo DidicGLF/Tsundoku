@@ -1,10 +1,21 @@
-# @tsundoku/book-sources
+# Tsundoku V2
 
-Couche commune pour les sources de métadonnées bibliographiques de Tsundoku V2.
+Réécriture de Tsundoku en parallèle de V1.
 
-Sources incluses :
-- Open Library, sans clé API.
-- Google Books, avec la clé personnelle de l'utilisateur si elle est disponible.
+## Stack actuelle
 
-Les fournisseurs sont normalisés vers `BookSearchResult` et `BookMetadata`.
-La base locale Tsundoku reste la source de vérité de l'application.
+- React + TypeScript + Vite
+- packages partagés dans un workspace pnpm
+- Open Library et Google Books pour les métadonnées
+- abstraction SQLite prête pour les adaptateurs natifs
+- stockage des credentials séparé des données synchronisées
+
+## Lancer le prototype
+
+```bash
+pnpm install
+pnpm typecheck
+pnpm dev
+```
+
+V1 reste indépendante de ce dossier.

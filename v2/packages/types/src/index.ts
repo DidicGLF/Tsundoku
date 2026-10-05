@@ -1,9 +1,4 @@
-export type ReadingStatus =
-  | "TO_READ"
-  | "READING"
-  | "READ"
-  | "ABANDONED"
-  | "ON_HOLD";
+export type ReadingStatus = "TO_READ" | "READING" | "READ" | "ABANDONED" | "ON_HOLD";
 
 export interface Book {
   id: string;
@@ -17,7 +12,7 @@ export interface Book {
   googleBooksId?: string;
   createdAt: string;
   updatedAt: string;
-  deletedAt?: string | null;
+  deletedAt?: string;
 }
 
 export interface UserBook {
@@ -29,14 +24,12 @@ export interface UserBook {
   owned: boolean;
   rating?: number;
   review?: string;
+  progressType?: "pages" | "chapters" | "percentage" | "minutes";
   progressValue?: number;
   progressTotal?: number;
-  progressType?: "PAGE" | "CHAPTER" | "PERCENT" | "MINUTE";
-  startedAt?: string;
-  finishedAt?: string;
   favorite: boolean;
   notes?: string;
   createdAt: string;
   updatedAt: string;
-  deletedAt?: string | null;
+  deletedAt?: string;
 }

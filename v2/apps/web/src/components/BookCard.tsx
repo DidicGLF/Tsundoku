@@ -1,4 +1,0 @@
-import type {BookSearchResult} from "@tsundoku/book-sources";
-export function BookCard({book,onAdd,added=false}:{book:BookSearchResult;onAdd?:(b:BookSearchResult)=>void;added?:boolean}){
- return <article className="book-card">{book.coverUrl?<img className="book-cover" src={book.coverUrl} alt="" loading="lazy"/>:<div className="book-cover placeholder">📖</div>}<div className="book-info"><span className="source-badge">{book.source==="google-books"?"Google Books":"Open Library"}</span><h3>{book.title}</h3><p>{book.authors.join(", ")||"Auteur inconnu"}</p><small>{[book.publishedYear,book.publisher].filter(Boolean).join(" · ")}</small>{onAdd&&<button className="secondary-button" disabled={added} onClick={()=>onAdd(book)}>{added?"Dans la bibliothèque":"Ajouter"}</button>}</div></article>
-}
