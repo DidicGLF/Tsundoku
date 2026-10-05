@@ -4,6 +4,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import type { BookSearchResult } from "@tsundoku/book-sources";
 import type { ReadingStatus } from "@tsundoku/database";
 import { searchBooks, type SearchProvider } from "./services/bookSearch";
+import { deleteGoogleBooksApiKey, hasGoogleBooksApiKey, saveGoogleBooksApiKey } from "./services/credentials";
 import {
   addBookToLibrary,
   initializeLibrary,
@@ -64,7 +65,7 @@ function progressPercent(book: LibraryBook) {
 }
 
 export default function App() {
-  const [view, setView] = useState<"home" | "library" | "add" | "detail">("home");
+  const [view, setView] = useState<"home" | "library" | "add" | "detail" | "settings">("home");
   const [library, setLibrary] = useState<LibraryBook[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dbState, setDbState] = useState<"loading" | "ready" | "error">("loading");
@@ -77,6 +78,10 @@ export default function App() {
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>("ALL");
   const [librarySort, setLibrarySort] = useState<LibrarySort>("RECENT");
+  const [googleKey, setGoogleKey] = useState("");
+  const [googleKeyConfigured, setGoogleKeyConfigured] = useState(false);
+  const [credentialBusy, setCredentialBusy] = useState(false);
+  const [credentialMessage, setCredentialMessage] = useState("");
 
   const selected = library.find(b => b.id === selectedId);
 
@@ -125,6 +130,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    void hasGoogleBooksApiKey().then(setGoogleKeyConfigured).catch(err => {
+      console.error("Credential storage initialization failed:", err);
+    });
+  }, []);
+
+  useEffect(() => {
   if (!Capacitor.isNativePlatform()) return;
 
   const listener = CapacitorApp.addListener("backButton", () => {
@@ -134,7 +145,7 @@ export default function App() {
         return "library";
       }
 
-      if (current === "library" || current === "add") {
+      if (current === "library" || current === "add" || current === "settings") {
         return "home";
       }
 
@@ -174,6 +185,37 @@ export default function App() {
     catch (x) { setError(x instanceof Error ? x.message : "Modification impossible."); }
   }
 
+  async function saveGoogleKey(e: FormEvent) {
+    e.preventDefault();
+    setCredentialBusy(true);
+    setCredentialMessage("");
+    try {
+      await saveGoogleBooksApiKey(googleKey);
+      setGoogleKey("");
+      setGoogleKeyConfigured(true);
+      setCredentialMessage("Clé Google Books enregistrée.");
+    } catch (x) {
+      setCredentialMessage(x instanceof Error ? x.message : "Impossible d'enregistrer la clé.");
+    } finally {
+      setCredentialBusy(false);
+    }
+  }
+
+  async function removeGoogleKey() {
+    setCredentialBusy(true);
+    setCredentialMessage("");
+    try {
+      await deleteGoogleBooksApiKey();
+      setGoogleKey("");
+      setGoogleKeyConfigured(false);
+      setCredentialMessage("Clé Google Books supprimée.");
+    } catch (x) {
+      setCredentialMessage(x instanceof Error ? x.message : "Impossible de supprimer la clé.");
+    } finally {
+      setCredentialBusy(false);
+    }
+  }
+
   function openBook(b: LibraryBook) {
     setSelectedId(b.id);
     setView("detail");
@@ -196,12 +238,13 @@ export default function App() {
         <button onClick={() => setView("home")}>Accueil</button>
         <button onClick={() => setView("library")}>Bibliothèque</button>
         <button onClick={() => setView("add")}>Ajouter</button>
+        <button onClick={() => setView("settings")}>Paramètres</button>
       </nav>
       <span>{dbState === "loading" && "◌ Initialisation SQLite…"}{dbState === "ready" && "● SQLite local"}{dbState === "error" && "⚠ SQLite indisponible"}</span>
     </aside>
 
     <main>
-      <header>Tsundoku V2<h1>{view === "home" ? "Bonjour 👋" : view === "library" ? "Ma bibliothèque" : view === "add" ? "Ajouter un livre" : selected?.title ?? "Livre"}</h1></header>
+      <header>Tsundoku V2<h1>{view === "home" ? "Bonjour 👋" : view === "library" ? "Ma bibliothèque" : view === "add" ? "Ajouter un livre" : view === "settings" ? "Paramètres" : selected?.title ?? "Livre"}</h1></header>
 
       {dbState === "error" && <section className="hero"><h2>SQLite n'a pas pu démarrer</h2><p className="error">{dbError}</p></section>}
 
@@ -260,6 +303,41 @@ export default function App() {
         {error && <p className="error">{error}</p>}
         <div className="grid">{results.map(b => <SearchCard key={`${b.source}-${b.sourceId}`} b={b} added={isAdded(b)} onAdd={dbState === "ready" ? add : undefined} />)}</div>
       </>}
+
+      {view === "settings" && <section className="settings-card">
+        <div className="settings-heading">
+          <div>
+            <p className="eyebrow">Sources de livres</p>
+            <h2>Google Books</h2>
+          </div>
+          <span className={googleKeyConfigured ? "credential-status configured" : "credential-status"}>
+            {googleKeyConfigured ? "● Clé configurée" : "○ Aucune clé"}
+          </span>
+        </div>
+        <p className="settings-help">
+          La clé est propre à cet appareil. Elle n'est enregistrée ni dans SQLite, ni dans les données synchronisables.
+          Sur Android, elle est conservée dans le stockage sécurisé du système.
+        </p>
+        <form className="credential-form" onSubmit={saveGoogleKey}>
+          <label>
+            {googleKeyConfigured ? "Remplacer la clé API" : "Clé API Google Books"}
+            <input
+              type="password"
+              autoComplete="off"
+              value={googleKey}
+              onChange={e => setGoogleKey(e.target.value)}
+              placeholder={googleKeyConfigured ? "Saisir une nouvelle clé…" : "Saisir la clé…"}
+            />
+          </label>
+          <div className="credential-actions">
+            <button disabled={credentialBusy || !googleKey.trim()}>
+              {credentialBusy ? "Enregistrement…" : googleKeyConfigured ? "Remplacer" : "Enregistrer"}
+            </button>
+            {googleKeyConfigured && <button type="button" className="danger-button" disabled={credentialBusy} onClick={() => void removeGoogleKey()}>Supprimer la clé</button>}
+          </div>
+        </form>
+        {credentialMessage && <p className="credential-message">{credentialMessage}</p>}
+      </section>}
 
       {view === "detail" && selected && <section className="book-detail">
         <button className="secondary" onClick={() => setView("library")}>← Bibliothèque</button>
