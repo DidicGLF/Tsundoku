@@ -5,7 +5,7 @@ import {
   type StoredLibraryBook,
   type LibraryBookUpdate
 } from "@tsundoku/database";
-import { WebSqliteAdapter } from "../database/WebSqliteAdapter";
+import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
 let repositoryPromise: Promise<SqliteNormalizedLibraryRepository> | null = null;
 
@@ -23,8 +23,8 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, label: string
 }
 
 async function createRepository(): Promise<SqliteNormalizedLibraryRepository> {
-  const adapter = await withTimeout(WebSqliteAdapter.create(), 10000, "L'initialisation de SQLite");
-  await withTimeout(runMigrations(adapter), 10000, "La migration de la base SQLite");
+  const adapter = await withTimeout(createSqliteAdapter(), 15000, "L'initialisation de SQLite");
+  await withTimeout(runMigrations(adapter), 15000, "La migration de la base SQLite");
   return new SqliteNormalizedLibraryRepository(adapter);
 }
 
