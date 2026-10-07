@@ -1,4 +1,6 @@
-export type BookSourceId = "open-library" | "google-books";
+export type BookSourceId = "open-library" | "google-books" | "bnf";
+export type BookSearchLanguage = "all" | "fr" | "en" | "de" | "es" | "it";
+export type BookSearchField = "all" | "title" | "author" | "isbn";
 
 export interface BookSearchResult {
   source: BookSourceId;
@@ -13,11 +15,13 @@ export interface BookSearchResult {
   language?: string;
   description?: string;
   coverUrl?: string;
+  seriesName?: string;
+  seriesVolume?: number;
 }
 export interface BookMetadata extends BookSearchResult { publishedDate?: string; originalTitle?: string; }
 export interface BookSource {
   readonly id: BookSourceId;
-  search(query: string): Promise<BookSearchResult[]>;
+  search(query: string, language?: BookSearchLanguage, offset?: number, field?: BookSearchField): Promise<BookSearchResult[]>;
   getBook(id: string): Promise<BookMetadata>;
 }
 export interface GoogleBooksApiKeyProvider { getGoogleBooksApiKey(): Promise<string | null>; }

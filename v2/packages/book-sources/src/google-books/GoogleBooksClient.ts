@@ -1,17 +1,21 @@
-import type { BookMetadata, BookSearchResult, BookSource, GoogleBooksApiKeyProvider } from "../types";
+import type { BookMetadata, BookSearchField, BookSearchLanguage, BookSearchResult, BookSource, GoogleBooksApiKeyProvider } from "../types";
 import { getJson } from "../http";
 import { mapGoogleBook, type GoogleBooksVolume } from "./mapper";
-interface Response { items?: GoogleBooksVolume[]; }
+interface Response { items?: GoogleBooksVolume[]; totalItems?: number; }
+const googlePrefix: Record<BookSearchField, string> = { all: "", title: "intitle:", author: "inauthor:", isbn: "isbn:" };
 export class GoogleBooksClient implements BookSource {
   readonly id="google-books" as const;
   constructor(private readonly keys:GoogleBooksApiKeyProvider,private readonly base="https://www.googleapis.com/books/v1"){}
   private async params(values:Record<string,string>) {
     const p=new URLSearchParams(values); const key=await this.keys.getGoogleBooksApiKey(); if(key)p.set("key",key); return p;
   }
-  async search(query:string):Promise<BookSearchResult[]> {
+  async search(query:string, language:BookSearchLanguage="all", offset=0, field:BookSearchField="all"):Promise<BookSearchResult[]> {
     query=query.trim(); if(!query)return [];
-    const p=await this.params({q:query,maxResults:"20",printType:"books"});
-    const data=await getJson<Response>(`${this.base}/volumes?${p}`); return (data.items??[]).map(mapGoogleBook);
+    const qualified = `${googlePrefix[field]}${query}`;
+    const values:Record<string,string>={q:qualified,maxResults:"40",startIndex:String(Math.max(0,offset)),printType:"books"};
+    const p=await this.params(values);
+    const data=await getJson<Response>(`${this.base}/volumes?${p}`);
+    return (data.items??[]).map(mapGoogleBook);
   }
   async getBook(id:string):Promise<BookMetadata> {
     id=id.trim(); if(!id)throw new Error("Google Books volume id cannot be empty.");

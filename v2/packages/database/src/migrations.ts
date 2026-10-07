@@ -1,6 +1,6 @@
 import type { SqliteAdapter } from "./adapter";
 
-const VERSION = 4;
+const VERSION = 6;
 
 const baseStatements = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -102,13 +102,46 @@ const baseStatements = [
     FOREIGN KEY(book_id) REFERENCES books(id),
     FOREIGN KEY(author_id) REFERENCES authors(id)
   )`,
+  `CREATE TABLE IF NOT EXISTS series (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS book_series (
+    book_id TEXT PRIMARY KEY,
+    series_id TEXT NOT NULL,
+    volume_number REAL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(book_id) REFERENCES books(id),
+    FOREIGN KEY(series_id) REFERENCES series(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS reading_sessions (
+    id TEXT PRIMARY KEY,
+    user_book_id TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    duration_minutes INTEGER NOT NULL,
+    start_progress REAL,
+    end_progress REAL,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    deleted_at TEXT,
+    FOREIGN KEY(user_book_id) REFERENCES user_books(id)
+  )`,
   `CREATE INDEX IF NOT EXISTS idx_user_books_user ON user_books(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_user_books_book ON user_books(book_id)`,
   `CREATE INDEX IF NOT EXISTS idx_library_books_added ON library_books(added_at)`,
   `CREATE INDEX IF NOT EXISTS idx_authors_normalized_name ON authors(normalized_name)`,
   `CREATE INDEX IF NOT EXISTS idx_editions_book ON editions(book_id)`,
   `CREATE INDEX IF NOT EXISTS idx_editions_isbn13 ON editions(isbn13)`,
-  `CREATE INDEX IF NOT EXISTS idx_editions_isbn10 ON editions(isbn10)`
+  `CREATE INDEX IF NOT EXISTS idx_editions_isbn10 ON editions(isbn10)`,
+  `CREATE INDEX IF NOT EXISTS idx_series_normalized_name ON series(normalized_name)`,
+  `CREATE INDEX IF NOT EXISTS idx_book_series_series ON book_series(series_id, volume_number)`,
+  `CREATE INDEX IF NOT EXISTS idx_reading_sessions_book ON reading_sessions(user_book_id, started_at)`
 ];
 
 const libraryColumns: Array<[string, string]> = [

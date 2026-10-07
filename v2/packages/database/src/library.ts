@@ -4,7 +4,7 @@ export type ReadingStatus = "TO_READ" | "READING" | "READ" | "ON_HOLD" | "ABANDO
 
 export interface StoredLibraryBook {
   id: string;
-  source: "open-library" | "google-books";
+  source: "open-library" | "google-books" | "bnf";
   sourceId: string;
   title: string;
   authors: string[];
@@ -25,6 +25,8 @@ export interface StoredLibraryBook {
   finishedAt?: string;
   addedAt: string;
   updatedAt: string;
+  seriesName?: string;
+  seriesVolume?: number;
 }
 
 export interface LibraryBookUpdate {
@@ -33,6 +35,8 @@ export interface LibraryBookUpdate {
   owned?: boolean;
   progressValue?: number;
   progressTotal?: number;
+  seriesName?: string;
+  seriesVolume?: number;
 }
 
 export interface LibraryRepository {

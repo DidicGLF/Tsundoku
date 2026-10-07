@@ -3,7 +3,9 @@ import {
   SqliteNormalizedLibraryRepository,
   runMigrations,
   type StoredLibraryBook,
-  type LibraryBookUpdate
+  type LibraryBookUpdate,
+  type ReadingSession,
+  type NewReadingSession
 } from "@tsundoku/database";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
@@ -37,7 +39,7 @@ export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
   return (await repository()).list();
 }
 
-export async function addBookToLibrary(book: BookSearchResult): Promise<StoredLibraryBook[]> {
+export async function addBookToLibrary(book: BookSearchResult, owned = true): Promise<StoredLibraryBook[]> {
   const repo = await repository();
   await repo.add({
     source: book.source,
@@ -51,14 +53,74 @@ export async function addBookToLibrary(book: BookSearchResult): Promise<StoredLi
     pageCount: book.pageCount,
     language: book.language,
     description: book.description,
-    coverUrl: book.coverUrl
+    coverUrl: book.coverUrl,
+    seriesName: book.seriesName,
+    seriesVolume: book.seriesVolume,
+    owned
   });
+  return repo.list();
+}
+
+
+export async function addBooksToLibrary(books: BookSearchResult[], owned = false): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  for (const book of books) {
+    await repo.add({
+      source: book.source,
+      sourceId: book.sourceId,
+      title: book.title,
+      authors: book.authors,
+      publishedYear: book.publishedYear,
+      publisher: book.publisher,
+      isbn10: book.isbn10,
+      isbn13: book.isbn13,
+      pageCount: book.pageCount,
+      language: book.language,
+      description: book.description,
+      coverUrl: book.coverUrl,
+      seriesName: book.seriesName,
+      seriesVolume: book.seriesVolume,
+      owned
+    });
+  }
+  return repo.list();
+}
+
+
+export async function refreshLibraryMetadata(
+  matches: Array<{ id: string; book: BookSearchResult }>
+): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  for (const { id, book } of matches) {
+    await repo.refreshMetadata(id, {
+      source: book.source,
+      sourceId: book.sourceId,
+      title: book.title,
+      authors: book.authors,
+      publishedYear: book.publishedYear,
+      publisher: book.publisher,
+      isbn10: book.isbn10,
+      isbn13: book.isbn13,
+      pageCount: book.pageCount,
+      language: book.language,
+      description: book.description,
+      coverUrl: book.coverUrl,
+      seriesName: book.seriesName,
+      seriesVolume: book.seriesVolume
+    });
+  }
   return repo.list();
 }
 
 export async function removeBookFromLibrary(id: string): Promise<StoredLibraryBook[]> {
   const repo = await repository();
   await repo.remove(id);
+  return repo.list();
+}
+
+export async function removeBooksFromLibrary(ids: string[]): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  for (const id of ids) await repo.remove(id);
   return repo.list();
 }
 
@@ -71,5 +133,15 @@ export async function updateLibraryBook(
   return repo.list();
 }
 
+export async function getReadingSessions(bookId: string): Promise<ReadingSession[]> {
+  return (await repository()).listReadingSessions(bookId);
+}
+
+export async function addReadingSession(bookId: string, session: NewReadingSession): Promise<{ library: StoredLibraryBook[]; sessions: ReadingSession[] }> {
+  const repo = await repository();
+  await repo.addReadingSession(bookId, session);
+  return { library: await repo.list(), sessions: await repo.listReadingSessions(bookId) };
+}
+
 export type LibraryBook = StoredLibraryBook;
-export type { LibraryBookUpdate };
+export type { LibraryBookUpdate, ReadingSession, NewReadingSession };
