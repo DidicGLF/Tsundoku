@@ -7,3 +7,4 @@ export * from "./open-library/OpenLibraryClient";
 export * from "./open-library/mapper";
 
 export * from "./bnf/BnfClient";
+export * from "./matching";

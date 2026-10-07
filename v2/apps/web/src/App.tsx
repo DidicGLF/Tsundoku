@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
-import { canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, type BookSearchResult } from "@tsundoku/book-sources";
+import { canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, collapseToWorks, isSameWork, normalizeText, type BookSearchResult } from "@tsundoku/book-sources";
 import type { ReadingStatus } from "@tsundoku/database";
 import { enrichSearchResults, getBookLanguageGroup, getBookLanguageLabel, mergeSearchResults, searchBooks, searchCompleteAuthorBibliography, type BookSearchField, type BookSearchLanguage, type SearchProvider } from "./services/bookSearch";
 import { getPreferredBookLanguage, setPreferredBookLanguage } from "./services/preferences";
@@ -70,34 +70,10 @@ function LibraryCard({ b, onOpen }: { b: LibraryBook; onOpen: (b: LibraryBook) =
 }
 
 
-function bibliographyText(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr").replace(/[^a-z0-9]+/g, " ").trim();
-}
 function displayAuthors(authors: string[]): string {
   const values = authors.map(canonicalAuthorDisplay).filter(name => name && name !== "Auteur inconnu");
   return values.join(", ") || "Auteur inconnu";
 }
-function sameBibliographicWork(result: BookSearchResult, local: LibraryBook): boolean {
-  if (result.isbn13 && local.isbn13 && result.isbn13.replace(/\D/g, "") === local.isbn13.replace(/\D/g, "")) return true;
-  if (result.isbn10 && local.isbn10 && result.isbn10.replace(/[^0-9Xx]/g, "").toUpperCase() === local.isbn10.replace(/[^0-9Xx]/g, "").toUpperCase()) return true;
-  const title = bibliographyText(result.title), localTitle = bibliographyText(local.title);
-  if (!title || title !== localTitle) return false;
-  const author = canonicalAuthorIdentity(result.authors[0] ?? ""), localAuthor = canonicalAuthorIdentity(local.authors[0] ?? "");
-  return !author || !localAuthor || author === localAuthor;
-}
-function collapseBibliography(results: BookSearchResult[]): BookSearchResult[] {
-  const works = new Map<string, BookSearchResult>();
-  for (const book of results) {
-    const key = `${bibliographyText(book.title)}::${canonicalAuthorIdentity(book.authors[0] ?? "")}`;
-    const previous = works.get(key);
-    if (!previous) { works.set(key, book); continue; }
-    const preferred = previous.coverUrl ? previous : book.coverUrl ? book : previous;
-    const other = preferred === previous ? book : previous;
-    works.set(key, { ...preferred, coverUrl: preferred.coverUrl ?? other.coverUrl, publishedYear: preferred.publishedYear ?? other.publishedYear, isbn13: preferred.isbn13 ?? other.isbn13, isbn10: preferred.isbn10 ?? other.isbn10, publisher: preferred.publisher ?? other.publisher, language: preferred.language ?? other.language, seriesName: preferred.seriesName ?? other.seriesName, seriesVolume: preferred.seriesVolume ?? other.seriesVolume });
-  }
-  return [...works.values()].sort((a, b) => (b.publishedYear ?? -1) - (a.publishedYear ?? -1) || a.title.localeCompare(b.title, "fr"));
-}
-
 function countStatus(library: LibraryBook[], status: ReadingStatus) {
   return library.filter(book => book.status === status).length;
 }
@@ -180,7 +156,7 @@ export default function App() {
   const authorBibliography = useMemo(() => {
     if (searchField !== "author") return [];
     const languageVisible = activeSearchLanguage === "all" ? results : results.filter(book => getBookLanguageGroup(book, activeSearchLanguage) === "preferred");
-    return collapseBibliography(languageVisible);
+    return collapseToWorks(languageVisible);
   }, [results, searchField, activeSearchLanguage]);
   const authorSearchGroups = useMemo(() => {
     const groups = new Map<string, { key: string; name: string; books: BookSearchResult[] }>();
@@ -194,7 +170,7 @@ export default function App() {
       else groups.set(key, { key, name, books: [book] });
     }
     return [...groups.values()]
-      .map(group => ({ ...group, books: collapseBibliography(group.books) }))
+      .map(group => ({ ...group, books: collapseToWorks(group.books) }))
       .sort((a, b) => b.books.length - a.books.length || authorSortKey(a.name).localeCompare(authorSortKey(b.name), "fr"));
   }, [authorBibliography, q]);
   const selectedAuthorBooks = useMemo(() => {
@@ -269,7 +245,7 @@ export default function App() {
       .map(group => ({
         ...group,
         initial: authorInitial(group.author),
-        anchor: `author-${bibliographyText(group.author).replace(/\s+/g, "-") || "unknown"}`,
+        anchor: `author-${normalizeText(group.author).replace(/\s+/g, "-") || "unknown"}`,
         books: [...group.books].sort((a, b) => {
           if (librarySort === "PROGRESS") return progressPercent(b) - progressPercent(a);
           if (librarySort === "RECENT") return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
@@ -354,7 +330,7 @@ export default function App() {
     void enrichSearchResults(found, preferredLanguage).then(async enriched => {
       const matches = enriched.flatMap(book => {
         if (!book.coverUrl && !book.description && !book.pageCount && !book.language) return [];
-        const local = localBooks.find(candidate => sameBibliographicWork(book, candidate));
+        const local = localBooks.find(candidate => isSameWork(book, candidate));
         if (!local) return [];
         return [{ id: local.id, book }];
       });
@@ -451,13 +427,13 @@ export default function App() {
     setError("");
     try {
       const remoteRaw = await searchCompleteAuthorBibliography(selectedAuthorName, "all", preferredLanguage, true);
-      const remote = collapseBibliography(remoteRaw.filter(book => {
+      const remote = collapseToWorks(remoteRaw.filter(book => {
         const key = canonicalAuthorIdentity(book.authors[0] ?? selectedAuthorName);
         return !key || key === selectedAuthorKey;
       }));
 
       const current = library.filter(book => canonicalAuthorIdentity(book.authors[0] ?? "") === selectedAuthorKey);
-      const newBooks = remote.filter(book => !current.some(local => sameBibliographicWork(book, local)));
+      const newBooks = remote.filter(book => !current.some(local => isSameWork(book, local)));
 
       let updated = current.some(book => book.newlyDiscovered)
         ? await clearNewlyDiscoveredBooks(current.map(book => book.id))
@@ -815,7 +791,7 @@ export default function App() {
           </section>
           <div className="author-result-list">
             {authorSearchGroups.map(group => {
-              const owned = group.books.filter(book => library.some(local => local.owned && sameBibliographicWork(book, local))).length;
+              const owned = group.books.filter(book => library.some(local => local.owned && isSameWork(book, local))).length;
               return <article className="author-result" key={group.key}>
                 <div>
                   <p className="eyebrow">Auteur</p>

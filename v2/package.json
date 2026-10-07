@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "pnpm --filter @tsundoku/web dev",
     "build": "pnpm --filter @tsundoku/web build",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2"
   }
 }

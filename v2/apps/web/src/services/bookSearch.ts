@@ -1,67 +1,13 @@
-import { BnfClient, GoogleBooksClient, OpenLibraryClient, type BookSearchField, type BookSearchLanguage, type BookSearchResult } from "@tsundoku/book-sources";
+import { BnfClient, GoogleBooksClient, OpenLibraryClient, canonicalIsbn, cleanIsbn, isSameEdition, mergeSearchResults, normalizeText as normalize, type BookSearchField, type BookSearchLanguage, type BookSearchResult } from "@tsundoku/book-sources";
 import { getCredentialStore } from "./credentials";
 
 export type SearchProvider = "all" | "bnf" | "open-library" | "google-books";
 export type { BookSearchField, BookSearchLanguage };
+export { mergeSearchResults };
 
 const bnf = new BnfClient();
 const openLibrary = new OpenLibraryClient();
 const googleBooks = new GoogleBooksClient(getCredentialStore());
-
-function normalize(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function cleanIsbn(value?: string): string | undefined {
-  const isbn = value?.replace(/[^0-9Xx]/g, "").toUpperCase();
-  return isbn && (isbn.length === 10 || isbn.length === 13) ? isbn : undefined;
-}
-
-function isbn10To13(value: string): string | undefined {
-  const isbn10 = cleanIsbn(value);
-  if (!isbn10 || isbn10.length !== 10 || !/^\d{9}[\dX]$/.test(isbn10)) return undefined;
-  const base = `978${isbn10.slice(0, 9)}`;
-  const sum = [...base].reduce((total, digit, index) => total + Number(digit) * (index % 2 === 0 ? 1 : 3), 0);
-  return `${base}${(10 - (sum % 10)) % 10}`;
-}
-
-function canonicalIsbn(book: BookSearchResult): string | undefined {
-  const isbn13 = cleanIsbn(book.isbn13);
-  if (isbn13?.length === 13) return isbn13;
-  const isbn10 = cleanIsbn(book.isbn10);
-  return isbn10?.length === 10 ? isbn10To13(isbn10) : undefined;
-}
-
-function mergeBook(previous: BookSearchResult, next: BookSearchResult): BookSearchResult {
-  const base = previous.coverUrl ? previous : next.coverUrl ? next : previous;
-  const other = base === previous ? next : previous;
-  return {
-    ...base,
-    authors: base.authors.length ? base.authors : other.authors,
-    publishedYear: base.publishedYear ?? other.publishedYear,
-    publisher: base.publisher ?? other.publisher,
-    isbn10: base.isbn10 ?? other.isbn10,
-    isbn13: base.isbn13 ?? other.isbn13,
-    pageCount: base.pageCount ?? other.pageCount,
-    language: base.language ?? other.language,
-    description: base.description ?? other.description,
-    coverUrl: base.coverUrl ?? other.coverUrl,
-    seriesName: base.seriesName ?? other.seriesName,
-    seriesVolume: base.seriesVolume ?? other.seriesVolume
-  };
-}
-
-export function mergeSearchResults(books: BookSearchResult[]): BookSearchResult[] {
-  const unique = new Map<string, BookSearchResult>();
-  for (const book of books) {
-    const isbn = canonicalIsbn(book);
-    const fallback = `${normalize(book.title)}::${normalize(book.authors[0] ?? "")}`;
-    const key = isbn ? `isbn:${isbn}` : `text:${fallback}`;
-    const previous = unique.get(key);
-    unique.set(key, previous ? mergeBook(previous, book) : book);
-  }
-  return [...unique.values()];
-}
 
 const languageAliases: Record<Exclude<BookSearchLanguage, "all">, string[]> = {
   fr: ["fr", "fre", "fra", "francais", "french"],
@@ -92,18 +38,6 @@ export function getBookLanguageLabel(book: BookSearchResult): string {
     if (aliases.some(alias => value === alias || value.startsWith(`${alias} `) || value.startsWith(`${alias}-`))) return code.toUpperCase();
   }
   return book.language?.trim().slice(0, 5).toUpperCase() || "?";
-}
-
-function sameBook(a: BookSearchResult, b: BookSearchResult): boolean {
-  const aIsbn = canonicalIsbn(a);
-  const bIsbn = canonicalIsbn(b);
-  if (aIsbn && bIsbn) return aIsbn === bIsbn;
-  const titleA = normalize(a.title);
-  const titleB = normalize(b.title);
-  if (!titleA || titleA !== titleB) return false;
-  const authorA = normalize(a.authors[0] ?? "");
-  const authorB = normalize(b.authors[0] ?? "");
-  return !authorA || !authorB || authorA === authorB || authorA.includes(authorB) || authorB.includes(authorA);
 }
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (item: T) => Promise<R>): Promise<R[]> {
@@ -218,7 +152,7 @@ async function findGoogleCover(book: BookSearchResult): Promise<string | undefin
     const query = [book.title, book.authors[0]].filter(Boolean).join(" ");
     if (!query) return undefined;
     const candidates = await googleBooks.search(query, "all", 0, "all");
-    return candidates.find(candidate => candidate.coverUrl && sameBook(book, candidate))?.coverUrl;
+    return candidates.find(candidate => candidate.coverUrl && isSameEdition(book, candidate))?.coverUrl;
   } catch {
     return undefined;
   }
