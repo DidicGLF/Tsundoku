@@ -1,0 +1,34 @@
+import initSqlJs, { type Database } from "sql.js";
+import type { SqliteAdapter, SqliteResult, SqliteRow } from "../src/adapter";
+
+/** In-memory SQLite adapter (sql.js) used to test the repository against real SQL. */
+export async function createTestAdapter(): Promise<SqliteAdapter & { raw: Database }> {
+  const SQL = await initSqlJs();
+  const db = new SQL.Database();
+  db.run("PRAGMA foreign_keys = ON");
+  let depth = 0;
+  return {
+    raw: db,
+    async execute(sql: string, params: unknown[] = []): Promise<SqliteResult> {
+      db.run(sql, params as never[]);
+      return { rowsAffected: db.getRowsModified() };
+    },
+    async query<T extends SqliteRow = SqliteRow>(sql: string, params: unknown[] = []): Promise<T[]> {
+      const statement = db.prepare(sql);
+      try {
+        statement.bind(params as never[]);
+        const rows: T[] = [];
+        while (statement.step()) rows.push(statement.getAsObject() as T);
+        return rows;
+      } finally { statement.free(); }
+    },
+    async transaction<T>(work: () => Promise<T>): Promise<T> {
+      if (depth > 0) { depth++; try { return await work(); } finally { depth--; } }
+      db.run("BEGIN");
+      depth = 1;
+      try { const result = await work(); db.run("COMMIT"); return result; }
+      catch (error) { db.run("ROLLBACK"); throw error; }
+      finally { depth = 0; }
+    }
+  };
+}

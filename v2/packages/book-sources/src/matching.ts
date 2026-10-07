@@ -9,9 +9,9 @@ export interface BookIdentity {
   isbn13?: string;
 }
 
-/** Lowercase, accent-free, alphanumeric-only form used to compare free text. */
+/** Lowercase, accent-free, letters-and-digits-only (any script) form used to compare free text. */
 export function normalizeText(value: string): string {
-  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLocaleLowerCase("fr").replace(/[^a-z0-9]+/g, " ").trim();
+  return value.normalize("NFD").replace(/\p{M}+/gu, "").toLocaleLowerCase("fr").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 /** Returns a bare 10 or 13 character ISBN, or undefined when the value cannot be one. */

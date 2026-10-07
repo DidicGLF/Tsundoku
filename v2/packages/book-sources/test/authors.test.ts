@@ -18,3 +18,10 @@ describe("canonicalAuthorName", () => {
     expect(canonicalAuthorName("  ")).toMatchObject({ display: "Auteur inconnu", identity: "" });
   });
 });
+
+describe("non-latin authors", () => {
+  it("keeps a usable identity", () => {
+    expect(canonicalAuthorIdentity("宮崎駿")).toBe("宮崎駿");
+    expect(canonicalAuthorIdentity("宮崎駿")).not.toBe(canonicalAuthorIdentity("尾田栄一郎"));
+  });
+});

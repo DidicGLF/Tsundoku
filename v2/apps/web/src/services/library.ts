@@ -1,7 +1,9 @@
-import type { BookSearchResult } from "@tsundoku/book-sources";
+import { canonicalAuthorDisplay, canonicalIsbn, type BookSearchResult } from "@tsundoku/book-sources";
 import {
-  SqliteNormalizedLibraryRepository,
+  SqliteLibraryRepository,
   runMigrations,
+  type FollowedAuthor,
+  type NewLibraryBook,
   type StoredLibraryBook,
   type LibraryBookUpdate,
   type ReadingSession,
@@ -9,7 +11,7 @@ import {
 } from "@tsundoku/database";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
-let repositoryPromise: Promise<SqliteNormalizedLibraryRepository> | null = null;
+let repositoryPromise: Promise<SqliteLibraryRepository> | null = null;
 
 function withTimeout<T>(promise: Promise<T>, milliseconds: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -24,15 +26,36 @@ function withTimeout<T>(promise: Promise<T>, milliseconds: number, label: string
   });
 }
 
-async function createRepository(): Promise<SqliteNormalizedLibraryRepository> {
+async function createRepository(): Promise<SqliteLibraryRepository> {
   const adapter = await withTimeout(createSqliteAdapter(), 15000, "L'initialisation de SQLite");
   await withTimeout(runMigrations(adapter), 15000, "La migration de la base SQLite");
-  return new SqliteNormalizedLibraryRepository(adapter);
+  return new SqliteLibraryRepository(adapter);
 }
 
-function repository(): Promise<SqliteNormalizedLibraryRepository> {
+function repository(): Promise<SqliteLibraryRepository> {
   repositoryPromise ??= createRepository();
   return repositoryPromise;
+}
+
+/** Search result -> library input, with catalogue author labels normalized and ISBN-13 derived. */
+function toNewBook(book: BookSearchResult, extra: Pick<NewLibraryBook, "owned" | "newlyDiscovered"> = {}): NewLibraryBook {
+  return {
+    source: book.source,
+    sourceId: book.sourceId,
+    title: book.title,
+    authors: book.authors.map(canonicalAuthorDisplay).filter(name => name !== "Auteur inconnu"),
+    publishedYear: book.publishedYear,
+    publisher: book.publisher,
+    isbn10: book.isbn10,
+    isbn13: canonicalIsbn(book) ?? book.isbn13,
+    pageCount: book.pageCount,
+    language: book.language,
+    description: book.description,
+    coverUrl: book.coverUrl,
+    seriesName: book.seriesName,
+    seriesVolume: book.seriesVolume,
+    ...extra
+  };
 }
 
 export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
@@ -41,75 +64,21 @@ export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
 
 export async function addBookToLibrary(book: BookSearchResult, owned = true): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  await repo.add({
-    source: book.source,
-    sourceId: book.sourceId,
-    title: book.title,
-    authors: book.authors,
-    publishedYear: book.publishedYear,
-    publisher: book.publisher,
-    isbn10: book.isbn10,
-    isbn13: book.isbn13,
-    pageCount: book.pageCount,
-    language: book.language,
-    description: book.description,
-    coverUrl: book.coverUrl,
-    seriesName: book.seriesName,
-    seriesVolume: book.seriesVolume,
-    owned
-  });
+  await repo.add(toNewBook(book, { owned }));
   return repo.list();
 }
-
 
 export async function addBooksToLibrary(books: BookSearchResult[], owned = false, newlyDiscovered = false): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  for (const book of books) {
-    await repo.add({
-      source: book.source,
-      sourceId: book.sourceId,
-      title: book.title,
-      authors: book.authors,
-      publishedYear: book.publishedYear,
-      publisher: book.publisher,
-      isbn10: book.isbn10,
-      isbn13: book.isbn13,
-      pageCount: book.pageCount,
-      language: book.language,
-      description: book.description,
-      coverUrl: book.coverUrl,
-      seriesName: book.seriesName,
-      seriesVolume: book.seriesVolume,
-      owned,
-      newlyDiscovered
-    });
-  }
+  for (const book of books) await repo.add(toNewBook(book, { owned, newlyDiscovered }));
   return repo.list();
 }
-
 
 export async function refreshLibraryMetadata(
   matches: Array<{ id: string; book: BookSearchResult }>
 ): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  for (const { id, book } of matches) {
-    await repo.refreshMetadata(id, {
-      source: book.source,
-      sourceId: book.sourceId,
-      title: book.title,
-      authors: book.authors,
-      publishedYear: book.publishedYear,
-      publisher: book.publisher,
-      isbn10: book.isbn10,
-      isbn13: book.isbn13,
-      pageCount: book.pageCount,
-      language: book.language,
-      description: book.description,
-      coverUrl: book.coverUrl,
-      seriesName: book.seriesName,
-      seriesVolume: book.seriesVolume
-    });
-  }
+  for (const { id, book } of matches) await repo.refreshMetadata(id, toNewBook(book));
   return repo.list();
 }
 
@@ -144,11 +113,7 @@ export async function addReadingSession(bookId: string, session: NewReadingSessi
   return { library: await repo.list(), sessions: await repo.listReadingSessions(bookId) };
 }
 
-export interface FollowedAuthorInfo {
-  authorKey: string;
-  name: string;
-  lastRefreshedAt?: string;
-}
+export type FollowedAuthorInfo = FollowedAuthor;
 
 export async function getFollowedAuthor(authorKey: string): Promise<FollowedAuthorInfo | null> {
   return (await repository()).getFollowedAuthor(authorKey);

@@ -80,6 +80,7 @@ export class WebSqliteAdapter implements SqliteAdapter {
     const storage = await openStorage();
     const bytes = await readDatabaseBytes(storage);
     const db = bytes ? new SQL.Database(bytes) : new SQL.Database();
+    db.run("PRAGMA foreign_keys = ON");
     const adapter = new WebSqliteAdapter(db, storage);
 
     if (!bytes) await adapter.persist();

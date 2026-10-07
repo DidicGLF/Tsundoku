@@ -75,21 +75,16 @@ importers:
 
   packages/book-sources: {}
 
-  packages/core:
-    dependencies:
-      '@tsundoku/types':
-        specifier: workspace:*
-        version: link:../types
-
   packages/credentials: {}
 
   packages/database:
-    dependencies:
-      '@tsundoku/types':
-        specifier: workspace:*
-        version: link:../types
-
-  packages/types: {}
+    devDependencies:
+      '@types/sql.js':
+        specifier: ^1.4.9
+        version: 1.4.11
+      sql.js:
+        specifier: ^1.13.0
+        version: 1.14.2
 
 packages:
 

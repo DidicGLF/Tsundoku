@@ -8,7 +8,7 @@ const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
 
 describe("normalizeText", () => {
   it("strips accents, case and punctuation", () => {
-    expect(normalizeText("  L'Été — Œuvres, Tome 1 !")).toBe("l ete uvres tome 1");
+    expect(normalizeText("  L'Été — Œuvres, Tome 1 !")).toBe("l ete œuvres tome 1");
   });
 });
 
@@ -76,5 +76,16 @@ describe("collapseToWorks", () => {
     ]);
     expect(result.map(r => r.title)).toEqual(["Children of Dune", "Dune"]);
     expect(result[1]).toMatchObject({ coverUrl: "c.jpg", publishedYear: 1970 });
+  });
+});
+
+describe("non-latin scripts", () => {
+  it("keeps titles and authors distinct instead of normalizing them to an empty string", () => {
+    expect(normalizeText("千と千尋の神隠し")).toBe("千と千尋の神隠し");
+    const result = collapseToWorks([
+      book({ title: "千と千尋の神隠し", authors: ["宮崎駿"] }),
+      book({ title: "風の谷のナウシカ", authors: ["宮崎駿"] })
+    ]);
+    expect(result).toHaveLength(2);
   });
 });

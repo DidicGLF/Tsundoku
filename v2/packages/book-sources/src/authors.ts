@@ -8,13 +8,13 @@ export interface CanonicalAuthorName {
 }
 
 function stripDiacritics(value: string): string {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return value.normalize("NFD").replace(/\p{M}+/gu, "");
 }
 
 function identityText(value: string): string {
   return stripDiacritics(value)
     .toLocaleLowerCase("fr")
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 }
 

@@ -20,10 +20,14 @@ export class CapacitorSqliteAdapter implements SqliteAdapter {
     return new CapacitorSqliteAdapter(db);
   }
 
+  private transactionDepth = 0;
+
   async execute(sql: string, params: unknown[] = []): Promise<SqliteResult> {
+    // Inside our own transaction the plugin must not open another one.
+    const wrap = this.transactionDepth === 0;
     const result = params.length
-      ? await this.db.run(sql, params)
-      : await this.db.execute(sql);
+      ? await this.db.run(sql, params, wrap)
+      : await this.db.execute(sql, wrap);
 
     const changes = result.changes;
     return {
@@ -38,6 +42,22 @@ export class CapacitorSqliteAdapter implements SqliteAdapter {
   }
 
   async transaction<T>(work: () => Promise<T>): Promise<T> {
-  return work();
-}
+    if (this.transactionDepth > 0) {
+      this.transactionDepth++;
+      try { return await work(); } finally { this.transactionDepth--; }
+    }
+
+    await this.db.beginTransaction();
+    this.transactionDepth = 1;
+    try {
+      const result = await work();
+      await this.db.commitTransaction();
+      return result;
+    } catch (error) {
+      try { await this.db.rollbackTransaction(); } catch { /* already rolled back */ }
+      throw error;
+    } finally {
+      this.transactionDepth = 0;
+    }
+  }
 }
