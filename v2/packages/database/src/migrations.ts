@@ -1,6 +1,6 @@
 import type { SqliteAdapter } from "./adapter";
 
-const VERSION = 6;
+const VERSION = 7;
 
 const baseStatements = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -37,6 +37,7 @@ const baseStatements = [
     finished_at TEXT,
     favorite INTEGER NOT NULL DEFAULT 0,
     notes TEXT,
+    newly_discovered INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -132,6 +133,13 @@ const baseStatements = [
     deleted_at TEXT,
     FOREIGN KEY(user_book_id) REFERENCES user_books(id)
   )`,
+  `CREATE TABLE IF NOT EXISTS followed_authors (
+    author_key TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    last_refreshed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`,
   `CREATE INDEX IF NOT EXISTS idx_user_books_user ON user_books(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_user_books_book ON user_books(book_id)`,
   `CREATE INDEX IF NOT EXISTS idx_library_books_added ON library_books(added_at)`,
@@ -141,7 +149,8 @@ const baseStatements = [
   `CREATE INDEX IF NOT EXISTS idx_editions_isbn10 ON editions(isbn10)`,
   `CREATE INDEX IF NOT EXISTS idx_series_normalized_name ON series(normalized_name)`,
   `CREATE INDEX IF NOT EXISTS idx_book_series_series ON book_series(series_id, volume_number)`,
-  `CREATE INDEX IF NOT EXISTS idx_reading_sessions_book ON reading_sessions(user_book_id, started_at)`
+  `CREATE INDEX IF NOT EXISTS idx_reading_sessions_book ON reading_sessions(user_book_id, started_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_followed_authors_refresh ON followed_authors(last_refreshed_at)`
 ];
 
 const libraryColumns: Array<[string, string]> = [
@@ -152,6 +161,10 @@ const libraryColumns: Array<[string, string]> = [
   ["started_at", "TEXT"],
   ["finished_at", "TEXT"],
   ["updated_at", "TEXT"]
+];
+
+const userBookColumns: Array<[string, string]> = [
+  ["newly_discovered", "INTEGER NOT NULL DEFAULT 0"]
 ];
 
 async function columnNames(db: SqliteAdapter, table: string): Promise<Set<string>> {
@@ -274,6 +287,13 @@ export async function runMigrations(db: SqliteAdapter): Promise<void> {
     for (const [name, definition] of libraryColumns) {
       if (!columns.has(name)) {
         await db.execute(`ALTER TABLE library_books ADD COLUMN ${name} ${definition}`);
+      }
+    }
+
+    const userBookColumnNames = await columnNames(db, "user_books");
+    for (const [name, definition] of userBookColumns) {
+      if (!userBookColumnNames.has(name)) {
+        await db.execute(`ALTER TABLE user_books ADD COLUMN ${name} ${definition}`);
       }
     }
 

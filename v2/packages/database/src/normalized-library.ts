@@ -17,6 +17,7 @@ export interface NewNormalizedLibraryBook {
   seriesName?: string;
   seriesVolume?: number;
   owned?: boolean;
+  newlyDiscovered?: boolean;
 }
 
 
@@ -51,7 +52,7 @@ export class SqliteNormalizedLibraryRepository {
         e.publisher, e.isbn10, e.isbn13, e.page_count,
         b.openlibrary_work_id, b.google_books_id,
         s.name AS series_name, bs.volume_number AS series_volume,
-        ub.status, ub.owned, ub.favorite, ub.progress_value, ub.progress_total,
+        ub.status, ub.owned, ub.favorite, ub.newly_discovered, ub.progress_value, ub.progress_total,
         ub.started_at, ub.finished_at, ub.created_at, ub.updated_at
        FROM user_books ub
        JOIN books b ON b.id = ub.book_id
@@ -96,6 +97,7 @@ export class SqliteNormalizedLibraryRepository {
         status: String(row.status) as ReadingStatus,
         favorite: Boolean(Number(row.favorite ?? 0)),
         owned: Boolean(Number(row.owned ?? 0)),
+        newlyDiscovered: Boolean(Number(row.newly_discovered ?? 0)),
         progressValue: numberOrUndefined(row.progress_value),
         progressTotal: numberOrUndefined(row.progress_total),
         startedAt: stringOrUndefined(row.started_at),
@@ -124,10 +126,10 @@ export class SqliteNormalizedLibraryRepository {
           `UPDATE user_books SET
              status = 'TO_READ', owned = ?, rating = NULL, review = NULL,
              progress_type = 'pages', progress_value = NULL, progress_total = ?,
-             started_at = NULL, finished_at = NULL, favorite = 0, notes = NULL,
+             started_at = NULL, finished_at = NULL, favorite = 0, notes = NULL, newly_discovered = ?,
              updated_at = ?, deleted_at = NULL
            WHERE id = ?`,
-          [(input.owned ?? true) ? 1 : 0, input.pageCount ?? null, now, deleted]
+          [(input.owned ?? true) ? 1 : 0, input.pageCount ?? null, input.newlyDiscovered ? 1 : 0, now, deleted]
         );
         await this.updateSeriesForUserBook(deleted, input.seriesName, input.seriesVolume);
         return;
@@ -193,11 +195,11 @@ export class SqliteNormalizedLibraryRepository {
       await this.db.execute(
         `INSERT INTO user_books
          (id,user_id,book_id,edition_id,status,owned,rating,review,progress_type,progress_value,
-          progress_total,started_at,finished_at,favorite,notes,created_at,updated_at,deleted_at)
-         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
+          progress_total,started_at,finished_at,favorite,notes,newly_discovered,created_at,updated_at,deleted_at)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)`,
         [
           userBookId, userId, bookId, editionId, "TO_READ", (input.owned ?? true) ? 1 : 0, null, null, "pages", null,
-          input.pageCount ?? null, null, null, 0, null, now, now
+          input.pageCount ?? null, null, null, 0, null, input.newlyDiscovered ? 1 : 0, now, now
         ]
       );
 
@@ -298,6 +300,35 @@ export class SqliteNormalizedLibraryRepository {
     );
   }
 
+  async getFollowedAuthor(authorKey: string): Promise<{ authorKey: string; name: string; lastRefreshedAt?: string } | null> {
+    const rows = await this.db.query<Record<string, unknown>>(
+      "SELECT author_key, name, last_refreshed_at FROM followed_authors WHERE author_key = ? LIMIT 1",
+      [authorKey]
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      authorKey: String(row.author_key),
+      name: String(row.name),
+      lastRefreshedAt: stringOrUndefined(row.last_refreshed_at)
+    };
+  }
+
+  async upsertFollowedAuthor(authorKey: string, name: string, refreshedAt: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.execute(
+      `INSERT INTO followed_authors(author_key,name,last_refreshed_at,created_at,updated_at)
+       VALUES(?,?,?,?,?)
+       ON CONFLICT(author_key) DO UPDATE SET
+         name = excluded.name, last_refreshed_at = excluded.last_refreshed_at, updated_at = excluded.updated_at`,
+      [authorKey, name, refreshedAt, now, now]
+    );
+  }
+
+  async removeFollowedAuthor(authorKey: string): Promise<void> {
+    await this.db.execute("DELETE FROM followed_authors WHERE author_key = ?", [authorKey]);
+  }
+
   async remove(id: string): Promise<void> {
     const rows = await this.db.query<{ id: string }>(
       "SELECT id FROM user_books WHERE id = ? AND deleted_at IS NULL LIMIT 1",
@@ -336,13 +367,14 @@ export class SqliteNormalizedLibraryRepository {
 
     await this.db.execute(
       `UPDATE user_books SET
-        status = ?, owned = ?, favorite = ?, progress_value = ?, progress_total = ?,
+        status = ?, owned = ?, favorite = ?, newly_discovered = ?, progress_value = ?, progress_total = ?,
         started_at = ?, finished_at = ?, updated_at = ?
        WHERE id = ?`,
       [
         status,
         (changes.owned ?? Boolean(Number(row.owned))) ? 1 : 0,
         (changes.favorite ?? Boolean(Number(row.favorite))) ? 1 : 0,
+        (changes.newlyDiscovered ?? Boolean(Number(row.newly_discovered ?? 0))) ? 1 : 0,
         changes.progressValue ?? numberOrUndefined(row.progress_value) ?? null,
         changes.progressTotal ?? numberOrUndefined(row.progress_total) ?? null,
         startedAt ?? null, finishedAt ?? null, now, id

@@ -346,12 +346,14 @@ const completeAuthorCache = new Map<string, Promise<BookSearchResult[]>>();
 export async function searchCompleteAuthorBibliography(
   q: string,
   p: SearchProvider,
-  language: BookSearchLanguage = "all"
+  language: BookSearchLanguage = "all",
+  forceRefresh = false
 ): Promise<BookSearchResult[]> {
   q = q.trim();
   if (!q) return [];
 
   const cacheKey = `${p}::${language}::${normalize(q)}`;
+  if (forceRefresh) completeAuthorCache.delete(cacheKey);
   const cached = completeAuthorCache.get(cacheKey);
   if (cached) return cached;
 

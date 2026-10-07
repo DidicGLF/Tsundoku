@@ -62,7 +62,7 @@ export async function addBookToLibrary(book: BookSearchResult, owned = true): Pr
 }
 
 
-export async function addBooksToLibrary(books: BookSearchResult[], owned = false): Promise<StoredLibraryBook[]> {
+export async function addBooksToLibrary(books: BookSearchResult[], owned = false, newlyDiscovered = false): Promise<StoredLibraryBook[]> {
   const repo = await repository();
   for (const book of books) {
     await repo.add({
@@ -80,7 +80,8 @@ export async function addBooksToLibrary(books: BookSearchResult[], owned = false
       coverUrl: book.coverUrl,
       seriesName: book.seriesName,
       seriesVolume: book.seriesVolume,
-      owned
+      owned,
+      newlyDiscovered
     });
   }
   return repo.list();
@@ -141,6 +142,30 @@ export async function addReadingSession(bookId: string, session: NewReadingSessi
   const repo = await repository();
   await repo.addReadingSession(bookId, session);
   return { library: await repo.list(), sessions: await repo.listReadingSessions(bookId) };
+}
+
+export interface FollowedAuthorInfo {
+  authorKey: string;
+  name: string;
+  lastRefreshedAt?: string;
+}
+
+export async function getFollowedAuthor(authorKey: string): Promise<FollowedAuthorInfo | null> {
+  return (await repository()).getFollowedAuthor(authorKey);
+}
+
+export async function saveFollowedAuthor(authorKey: string, name: string, refreshedAt = new Date().toISOString()): Promise<void> {
+  await (await repository()).upsertFollowedAuthor(authorKey, name, refreshedAt);
+}
+
+export async function removeFollowedAuthor(authorKey: string): Promise<void> {
+  await (await repository()).removeFollowedAuthor(authorKey);
+}
+
+export async function clearNewlyDiscoveredBooks(ids: string[]): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  for (const id of ids) await repo.update(id, { newlyDiscovered: false });
+  return repo.list();
 }
 
 export type LibraryBook = StoredLibraryBook;

@@ -27,6 +27,7 @@ export interface StoredLibraryBook {
   updatedAt: string;
   seriesName?: string;
   seriesVolume?: number;
+  newlyDiscovered: boolean;
 }
 
 export interface LibraryBookUpdate {
@@ -37,6 +38,7 @@ export interface LibraryBookUpdate {
   progressTotal?: number;
   seriesName?: string;
   seriesVolume?: number;
+  newlyDiscovered?: boolean;
 }
 
 export interface LibraryRepository {
@@ -131,7 +133,8 @@ function mapRow(r: Record<string, unknown>): StoredLibraryBook {
     startedAt: stringOrUndefined(r.started_at),
     finishedAt: stringOrUndefined(r.finished_at),
     addedAt: String(r.added_at),
-    updatedAt: String(r.updated_at || r.added_at)
+    updatedAt: String(r.updated_at || r.added_at),
+    newlyDiscovered: false
   };
 }
 

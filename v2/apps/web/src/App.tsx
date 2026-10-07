@@ -14,6 +14,10 @@ import {
   removeBooksFromLibrary,
   refreshLibraryMetadata,
   updateLibraryBook,
+  getFollowedAuthor,
+  saveFollowedAuthor,
+  removeFollowedAuthor,
+  clearNewlyDiscoveredBooks,
   getReadingSessions,
   addReadingSession,
   type LibraryBook,
@@ -126,6 +130,11 @@ function formatSessionDate(value: string) {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
+function formatRefreshDate(value?: string) {
+  if (!value) return "Jamais";
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
 export default function App() {
   const [view, setView] = useState<"home" | "library" | "add" | "author" | "detail" | "settings">("home");
   const [library, setLibrary] = useState<LibraryBook[]>([]);
@@ -163,6 +172,9 @@ export default function App() {
   const [selectedAuthorName, setSelectedAuthorName] = useState("");
   const [authorBookFilter, setAuthorBookFilter] = useState<AuthorBookFilter>("ALL");
   const [authorBookSort, setAuthorBookSort] = useState<AuthorBookSort>("MISSING");
+  const [authorRefreshBusy, setAuthorRefreshBusy] = useState(false);
+  const [authorLastRefreshedAt, setAuthorLastRefreshedAt] = useState<string | undefined>();
+  const [authorRefreshMessage, setAuthorRefreshMessage] = useState("");
 
   const selected = library.find(b => b.id === selectedId);
   const authorBibliography = useMemo(() => {
@@ -208,6 +220,7 @@ export default function App() {
   const selectedAuthorOwned = selectedAuthorBooks.filter(book => book.owned).length;
   const selectedAuthorRead = selectedAuthorBooks.filter(book => book.status === "READ").length;
   const selectedAuthorMissing = selectedAuthorBooks.length - selectedAuthorOwned;
+  const selectedAuthorNew = selectedAuthorBooks.filter(book => book.newlyDiscovered).length;
 
   const filteredLibrary = useMemo(() => {
     const needle = libraryQuery.trim().toLocaleLowerCase("fr");
@@ -387,10 +400,14 @@ export default function App() {
       // Une bibliographie suivie appartient à la bibliothèque locale : les œuvres
       // non cochées sont simplement des livres manquants (owned = false).
       const updated = await addBooksToLibrary(group.books, false);
+      const refreshedAt = new Date().toISOString();
+      await saveFollowedAuthor(group.key, group.name, refreshedAt);
       setLibrary(updated);
       enrichAuthorLibraryInBackground(group.books, updated);
       setSelectedAuthorKey(group.key);
       setSelectedAuthorName(group.name);
+      setAuthorLastRefreshedAt(refreshedAt);
+      setAuthorRefreshMessage("");
       setAuthorBookFilter("ALL");
       setAuthorBookSort("MISSING");
       setView("author");
@@ -409,15 +426,59 @@ export default function App() {
     }
   }
 
-  function openLibraryAuthor(author: string) {
+  async function openLibraryAuthor(author: string) {
     const key = canonicalAuthorIdentity(author);
     const books = library.filter(book => canonicalAuthorIdentity(book.authors[0] ?? "") === key);
     setSelectedAuthorName(author);
     setSelectedAuthorKey(key);
     setAuthorBookFilter("ALL");
     setAuthorBookSort("MISSING");
+    setAuthorRefreshMessage("");
     setView("author");
     enrichAuthorLibraryInBackground(books, books);
+    try {
+      const info = await getFollowedAuthor(key);
+      setAuthorLastRefreshedAt(info?.lastRefreshedAt);
+    } catch {
+      setAuthorLastRefreshedAt(undefined);
+    }
+  }
+
+  async function refreshSelectedAuthor() {
+    if (!selectedAuthorKey || !selectedAuthorName || authorRefreshBusy) return;
+    setAuthorRefreshBusy(true);
+    setAuthorRefreshMessage("");
+    setError("");
+    try {
+      const remoteRaw = await searchCompleteAuthorBibliography(selectedAuthorName, "all", preferredLanguage, true);
+      const remote = collapseBibliography(remoteRaw.filter(book => {
+        const key = canonicalAuthorIdentity(book.authors[0] ?? selectedAuthorName);
+        return !key || key === selectedAuthorKey;
+      }));
+
+      const current = library.filter(book => canonicalAuthorIdentity(book.authors[0] ?? "") === selectedAuthorKey);
+      const newBooks = remote.filter(book => !current.some(local => sameBibliographicWork(book, local)));
+
+      let updated = current.some(book => book.newlyDiscovered)
+        ? await clearNewlyDiscoveredBooks(current.map(book => book.id))
+        : library;
+
+      if (newBooks.length) updated = await addBooksToLibrary(newBooks, false, true);
+
+      const refreshedAt = new Date().toISOString();
+      await saveFollowedAuthor(selectedAuthorKey, selectedAuthorName, refreshedAt);
+      setLibrary(updated);
+      setAuthorLastRefreshedAt(refreshedAt);
+      setAuthorRefreshMessage(newBooks.length
+        ? `${newBooks.length} nouvelle${newBooks.length > 1 ? "s" : ""} œuvre${newBooks.length > 1 ? "s" : ""} détectée${newBooks.length > 1 ? "s" : ""}.`
+        : "Bibliographie à jour : aucune nouvelle œuvre détectée.");
+      if (newBooks.length) setAuthorBookFilter("ALL");
+      enrichAuthorLibraryInBackground(remote, updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Impossible d’actualiser cette bibliographie.");
+    } finally {
+      setAuthorRefreshBusy(false);
+    }
   }
 
   async function removeSelectedAuthor() {
@@ -432,9 +493,12 @@ export default function App() {
     setError("");
     try {
       const next = await removeBooksFromLibrary(selectedAuthorBooks.map(book => book.id));
+      await removeFollowedAuthor(selectedAuthorKey);
       setLibrary(next);
       setSelectedAuthorKey(null);
       setSelectedAuthorName("");
+      setAuthorLastRefreshedAt(undefined);
+      setAuthorRefreshMessage("");
       setAuthorBookFilter("ALL");
       setView("library");
     } catch (e) {
@@ -658,7 +722,7 @@ export default function App() {
               return <section className="author-section" id={group.anchor} key={group.anchor}>
                 {showLetter && <div className="author-letter-anchor" id={letterId}>{group.initial}</div>}
                 <div className="author-heading">
-                  <button type="button" className="author-open" onClick={() => openLibraryAuthor(group.author)}><p className="eyebrow">Auteur</p><h2>{group.author}</h2></button>
+                  <button type="button" className="author-open" onClick={() => void openLibraryAuthor(group.author)}><p className="eyebrow">Auteur</p><h2>{group.author}</h2></button>
                   <div className="author-count"><strong>{group.ownedCount}/{group.books.length}</strong><span>possédé{group.ownedCount > 1 ? "s" : ""}</span><em>{group.books.length - group.ownedCount} manquant{group.books.length - group.ownedCount > 1 ? "s" : ""}</em></div>
                 </div>
                 <div className="grid">{group.books.map(b => <LibraryCard key={b.id} b={b} onOpen={openBook} />)}</div>
@@ -683,10 +747,21 @@ export default function App() {
                 <button type="button" className="author-stat read" onClick={() => setAuthorBookFilter("READ")}><strong>{selectedAuthorRead}</strong><span>Lu{selectedAuthorRead > 1 ? "s" : ""}</span></button>
               </div>
             </div>
-            <button type="button" className="danger-button author-delete-button" disabled={authorDeleteBusy} onClick={() => void removeSelectedAuthor()}>
-              {authorDeleteBusy ? "Suppression…" : "Supprimer l’auteur"}
-            </button>
+            <div className="author-header-actions">
+              <div className="author-refresh-status">
+                <small>Dernière actualisation</small>
+                <strong>{formatRefreshDate(authorLastRefreshedAt)}</strong>
+                {selectedAuthorNew > 0 && <span className="new-count">{selectedAuthorNew} nouveauté{selectedAuthorNew > 1 ? "s" : ""}</span>}
+              </div>
+              <button type="button" className="refresh-author-button" disabled={authorRefreshBusy} onClick={() => void refreshSelectedAuthor()}>
+                {authorRefreshBusy ? "Actualisation…" : "↻ Actualiser la bibliographie"}
+              </button>
+              <button type="button" className="danger-button author-delete-button" disabled={authorDeleteBusy} onClick={() => void removeSelectedAuthor()}>
+                {authorDeleteBusy ? "Suppression…" : "Supprimer l’auteur"}
+              </button>
+            </div>
           </div>
+          {authorRefreshMessage && <p className="author-refresh-message">{authorRefreshMessage}</p>}
           <p className="author-delete-help">Retire cet auteur et toute sa bibliographie suivie de Tsundoku. Une confirmation sera demandée.</p>
         </section>
 
@@ -709,7 +784,7 @@ export default function App() {
           {visibleAuthorBooks.map(book => <article className={`author-book-row ${book.owned ? "owned" : "missing"}`} key={book.id}>
             <button type="button" className="book-row-main" onClick={() => openBook(book)}>
               {book.coverUrl ? <img src={book.coverUrl} alt="" /> : <div className="mini-cover">📖</div>}
-              <span><small>{book.publishedYear ?? "Date inconnue"}</small><strong>{book.title}</strong><em>{book.publisher ?? ""}</em></span>
+              <span><small>{book.publishedYear ?? "Date inconnue"} {book.newlyDiscovered && <b className="new-book-badge">Nouveau</b>}</small><strong>{book.title}</strong><em>{book.publisher ?? ""}</em></span>
             </button>
             <div className="quick-book-actions">
               <button type="button" className={book.owned ? "state-toggle active-owned" : "state-toggle"} onClick={() => void quickPatchBook(book, { owned: !book.owned })}>{book.owned ? "✓ Possédé" : "✗ Manquant"}</button>
