@@ -1,0 +1,117 @@
+import { describe, expect, it } from "vitest";
+import {
+  authorInitial, authorStats, booksOfAuthor, filterAuthorBooks, filterLibrary, findNewWorks, groupByAuthor,
+  isInLibrary, libraryFilterCounts, plural, progressPercent, sortLibrary
+} from "../src/lib/library-view";
+import type { LibraryBook } from "../src/services/library";
+
+let n = 0;
+const book = (over: Partial<LibraryBook> = {}): LibraryBook => ({
+  id: `b${++n}`, source: "open-library", sourceId: `s${n}`, title: `Livre ${n}`, authors: ["Frank Herbert"],
+  status: "TO_READ", favorite: false, owned: true, newlyDiscovered: false,
+  addedAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z", ...over
+});
+
+describe("filterLibrary", () => {
+  const library = [
+    book({ title: "Dune", owned: true, status: "READ", favorite: true }),
+    book({ title: "Le Messie de Dune", owned: false }),
+    book({ title: "Hypérion", authors: ["Dan Simmons"], isbn13: "9782070415236", status: "READING" })
+  ];
+  it("filters by ownership, status and favorites", () => {
+    expect(filterLibrary(library, "MISSING", "").map(b => b.title)).toEqual(["Le Messie de Dune"]);
+    expect(filterLibrary(library, "OWNED", "")).toHaveLength(2);
+    expect(filterLibrary(library, "READING", "")).toHaveLength(1);
+    expect(filterLibrary(library, "FAVORITES", "")).toHaveLength(1);
+  });
+  it("searches title, author and ISBN ignoring case", () => {
+    expect(filterLibrary(library, "ALL", "DUNE")).toHaveLength(2);
+    expect(filterLibrary(library, "ALL", "simmons")).toHaveLength(1);
+    expect(filterLibrary(library, "ALL", "9782070415236")).toHaveLength(1);
+  });
+  it("combines filter and query", () => {
+    expect(filterLibrary(library, "OWNED", "dune").map(b => b.title)).toEqual(["Dune"]);
+  });
+  it("counts per filter", () => {
+    const counts = Object.fromEntries(libraryFilterCounts(library).map(([k, , c]) => [k, c]));
+    expect(counts).toMatchObject({ ALL: 3, MISSING: 1, OWNED: 2, READ: 1, READING: 1, FAVORITES: 1 });
+  });
+});
+
+describe("sortLibrary", () => {
+  it("sorts by recency, title and progress (unknown last)", () => {
+    const a = book({ title: "B", updatedAt: "2026-03-01T00:00:00Z", progressValue: 10, progressTotal: 100 });
+    const b = book({ title: "A", updatedAt: "2026-01-01T00:00:00Z", progressValue: 50, progressTotal: 100 });
+    const c = book({ title: "C", updatedAt: "2026-02-01T00:00:00Z" });
+    expect(sortLibrary([a, b, c], "RECENT").map(x => x.title)).toEqual(["B", "C", "A"]);
+    expect(sortLibrary([a, b, c], "TITLE").map(x => x.title)).toEqual(["A", "B", "C"]);
+    expect(sortLibrary([a, b, c], "PROGRESS").map(x => x.title)).toEqual(["A", "B", "C"]);
+    expect(progressPercent(c)).toBe(-1);
+  });
+});
+
+describe("groupByAuthor", () => {
+  it("merges BnF and plain spellings of an author and orders groups by surname", () => {
+    const groups = groupByAuthor([
+      book({ title: "Hypérion", authors: ["Simmons, Dan (1948-....). Auteur du texte"] }),
+      book({ title: "Dune", authors: ["Frank Herbert"], owned: false }),
+      book({ title: "Ilium", authors: ["Dan Simmons"] })
+    ], "TITLE");
+    expect(groups.map(g => g.author)).toEqual(["Frank Herbert", "Dan Simmons"]);
+    expect(groups[1].books.map(b => b.title)).toEqual(["Hypérion", "Ilium"]);
+    expect(groups[0]).toMatchObject({ initial: "H", ownedCount: 0 });
+    expect(groups[1]).toMatchObject({ initial: "S", ownedCount: 2 });
+  });
+  it("puts non-latin authors under #", () => {
+    expect(authorInitial("宮崎駿")).toBe("#");
+    expect(groupByAuthor([book({ authors: ["宮崎駿"] }), book({ authors: ["尾田栄一郎"] })], "TITLE")).toHaveLength(2);
+  });
+});
+
+describe("author bibliography", () => {
+  const library = [
+    book({ authors: ["Frank Herbert"], owned: true, status: "READ" }),
+    book({ authors: ["Herbert, Frank (1920-1986). Auteur du texte"], owned: false, newlyDiscovered: true }),
+    book({ authors: ["Dan Simmons"] })
+  ];
+  it("selects an author's books whatever the spelling", () => {
+    expect(booksOfAuthor(library, "frank herbert")).toHaveLength(2);
+    expect(booksOfAuthor(library, null)).toEqual([]);
+  });
+  it("computes stats", () => {
+    expect(authorStats(booksOfAuthor(library, "frank herbert"))).toEqual({ total: 2, owned: 1, read: 1, missing: 1, unread: 1, newlyDiscovered: 1 });
+  });
+  it("filters and sorts: missing first, then title; recent publications first", () => {
+    const books = [book({ title: "B", owned: true, publishedYear: 1970 }), book({ title: "A", owned: false, publishedYear: 1965 }), book({ title: "C", owned: true, publishedYear: 1980 })];
+    expect(filterAuthorBooks(books, "ALL", "MISSING").map(b => b.title)).toEqual(["A", "B", "C"]);
+    expect(filterAuthorBooks(books, "ALL", "DATE").map(b => b.title)).toEqual(["C", "B", "A"]);
+    expect(filterAuthorBooks(books, "MISSING", "TITLE").map(b => b.title)).toEqual(["A"]);
+    expect(filterAuthorBooks(books, "TO_READ", "TITLE")).toHaveLength(3);
+  });
+  it("detects works missing locally, even with another ISBN or spelling", () => {
+    const local = [book({ title: "Dune", authors: ["Frank Herbert"], isbn13: "9780441172719" })];
+    const remote = [
+      { source: "bnf" as const, sourceId: "1", title: "Dune", authors: ["Herbert, Frank (1920-1986)"], isbn13: "9782266320481" },
+      { source: "bnf" as const, sourceId: "2", title: "L'Empereur-Dieu de Dune", authors: ["Frank Herbert"] }
+    ];
+    expect(findNewWorks(remote, local).map(b => b.title)).toEqual(["L'Empereur-Dieu de Dune"]);
+  });
+});
+
+describe("isInLibrary", () => {
+  const library = [book({ source: "bnf", sourceId: "ark1", isbn13: "9780441172719" })];
+  it("matches by ISBN or by source id", () => {
+    expect(isInLibrary({ source: "google-books", sourceId: "g", title: "x", authors: [], isbn13: "9780441172719" }, library)).toBe(true);
+    expect(isInLibrary({ source: "bnf", sourceId: "ark1", title: "x", authors: [] }, library)).toBe(true);
+    expect(isInLibrary({ source: "bnf", sourceId: "ark2", title: "x", authors: [] }, library)).toBe(false);
+  });
+});
+
+describe("plural", () => {
+  it("only pluralizes above 1", () => {
+    expect(plural(0, "livre")).toBe("livre");
+    expect(plural(1, "livre")).toBe("livre");
+    expect(plural(2, "livre")).toBe("livres");
+    expect(plural(2, "sera", "seront")).toBe("seront");
+  });
+});
