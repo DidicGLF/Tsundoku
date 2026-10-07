@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.vite/
+*.tar.gz
+*.log
+.DS_Store
+
+# Android / Capacitor
+apps/web/android/build/
+apps/web/android/app/build/
+apps/web/android/.gradle/
+apps/web/android/local.properties
+apps/web/android/app/src/main/assets/public/
+apps/web/android/app/src/main/assets/capacitor.config.json
+apps/web/android/app/src/main/assets/capacitor.plugins.json
+*.keystore
+*.jks
+.env*
