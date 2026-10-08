@@ -113,6 +113,14 @@ export function libraryFilterCounts(library: LibraryBook[]): Array<[LibraryFilte
   ];
 }
 
+/**
+ * Les notices BnF d'anthologies ou de recueils dirigés n'ont aucun auteur : trouvées en
+ * cherchant un auteur, elles lui sont rattachées plutôt que rangées sous « Auteur inconnu ».
+ */
+export function attributeOrphans<T extends { authors: string[] }>(books: T[], authorName: string): T[] {
+  return books.map(book => book.authors.some(name => name.trim()) ? book : { ...book, authors: [authorName] });
+}
+
 /** True when a search result is already in the library (same ISBN or same source id). */
 export function isInLibrary(result: BookSearchResult, library: LibraryBook[]): boolean {
   return library.some(book =>

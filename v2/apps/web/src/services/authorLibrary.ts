@@ -9,7 +9,7 @@ import {
   saveFollowedAuthor,
   type LibraryBook
 } from "./library";
-import { booksOfAuthor, findNewWorks } from "../lib/library-view";
+import { attributeOrphans, booksOfAuthor, findNewWorks } from "../lib/library-view";
 
 /**
  * Suit un auteur : sa bibliographie entre dans la bibliothèque locale, les œuvres
@@ -17,7 +17,7 @@ import { booksOfAuthor, findNewWorks } from "../lib/library-view";
  */
 export async function followAuthor(group: { key: string; name: string; books: BookSearchResult[] }): Promise<{ library: LibraryBook[]; refreshedAt: string }> {
   const start = performance.now();
-  const library = await addBooksToLibrary(group.books, false);
+  const library = await addBooksToLibrary(attributeOrphans(group.books, group.name), false);
   console.info(`[tsundoku] suivi de ${group.name}: ${group.books.length} œuvres en ${Math.round(performance.now() - start)} ms`);
   const refreshedAt = new Date().toISOString();
   await saveFollowedAuthor(group.key, group.name, refreshedAt);
@@ -67,7 +67,7 @@ export async function refreshAuthor(authorKey: string, authorName: string, libra
   }));
 
   const current = booksOfAuthor(library, authorKey);
-  const newBooks = findNewWorks(remote, current);
+  const newBooks = attributeOrphans(findNewWorks(remote, current), authorName);
 
   let updated = current.some(book => book.newlyDiscovered)
     ? await clearNewlyDiscoveredBooks(current.map(book => book.id))

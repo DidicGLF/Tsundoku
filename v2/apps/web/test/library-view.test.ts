@@ -115,3 +115,11 @@ describe("plural", () => {
     expect(plural(2, "sera", "seront")).toBe("seront");
   });
 });
+
+describe("attributeOrphans", () => {
+  it("gives an author to authorless notices and leaves the others alone", async () => {
+    const { attributeOrphans } = await import("../src/lib/library-view");
+    const result = attributeOrphans([{ authors: [] }, { authors: ["  "] }, { authors: ["Robert Silverberg"] }], "Isaac Asimov");
+    expect(result.map(book => book.authors)).toEqual([["Isaac Asimov"], ["Isaac Asimov"], ["Robert Silverberg"]]);
+  });
+});
