@@ -115,16 +115,31 @@ export function isSameWork(a: BookIdentity, b: BookIdentity): boolean {
   return shareAuthor(a.authors, b.authors);
 }
 
+const authorTokens = (name: string) => new Set(canonicalAuthorIdentity(name).split(" ").filter(Boolean));
+
+/**
+ * Même auteur, même quand l'un des noms est incomplet : « Eddings » est « David Eddings »
+ * (tous les mots du nom le plus court se retrouvent dans le plus long). « Leigh Eddings »
+ * n'est pas « David Eddings ». À n'utiliser qu'avec un autre indice, comme le titre.
+ */
+export function isSameAuthorName(a: string, b: string): boolean {
+  const tokensA = authorTokens(a);
+  const tokensB = authorTokens(b);
+  if (!tokensA.size || !tokensB.size) return false;
+  const [small, big] = tokensA.size <= tokensB.size ? [tokensA, tokensB] : [tokensB, tokensA];
+  return [...small].every(token => big.has(token));
+}
+
 /**
  * Two author lists are compatible when either is unknown or they share an author
  * (co-written books: « David et Leigh Eddings » matches « David Eddings »).
  */
 export function shareAuthor(a: string[], b: string[]): boolean {
-  const identities = (authors: string[]) => new Set(authors.map(canonicalAuthorIdentity).filter(Boolean));
-  const setA = identities(a);
-  const setB = identities(b);
-  if (!setA.size || !setB.size) return true;
-  return [...setA].some(identity => setB.has(identity));
+  const known = (authors: string[]) => authors.filter(name => authorTokens(name).size);
+  const listA = known(a);
+  const listB = known(b);
+  if (!listA.length || !listB.length) return true;
+  return listA.some(x => listB.some(y => isSameAuthorName(x, y)));
 }
 
 /** Mentions de genre que le catalogue ajoute après « : » ; ce ne sont pas de vrais sous-titres. */

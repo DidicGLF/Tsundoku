@@ -1,5 +1,5 @@
 import {
-  canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, canonicalIsbn, cleanIsbn, isSameWork, normalizeText, shareAuthor, workTitle,
+  canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, canonicalIsbn, cleanIsbn, isSameAuthorName, isSameWork, normalizeText, shareAuthor, workTitle,
   type BookSearchResult
 } from "@tsundoku/book-sources";
 import type { ReadingStatus } from "@tsundoku/database";
@@ -241,6 +241,36 @@ export function findLocalWork(book: BookSearchResult, index: WorkIndex): Library
     if (found) return found;
   }
   return (index.byTitle.get(normalizeText(workTitle(book.title))) ?? []).find(local => shareAuthor(book.authors, local.authors));
+}
+
+/**
+ * Complète un nom d'auteur incomplet avec celui déjà présent dans la bibliothèque
+ * (« Eddings » → « David Eddings »), pour ne pas créer un second groupe d'auteur.
+ * Si plusieurs auteurs conviennent (David et Leigh Eddings), on prend le nettement plus fréquent, sinon on ne touche à rien.
+ */
+export function completeAuthorNames(authors: string[], library: Array<Pick<LibraryBook, "authors">>): string[] {
+  const counts = new Map<string, { name: string; count: number }>();
+  for (const book of library) {
+    for (const name of book.authors) {
+      const key = canonicalAuthorIdentity(name);
+      if (!key) continue;
+      const entry = counts.get(key) ?? { name, count: 0 };
+      entry.count++;
+      counts.set(key, entry);
+    }
+  }
+  return authors.map(name => {
+    const identity = canonicalAuthorIdentity(name);
+    if (!identity) return name;
+    // Déjà connu tel quel : rien à compléter.
+    if (counts.has(identity)) return counts.get(identity)!.name;
+    const fuller = [...counts.entries()]
+      .filter(([key, entry]) => key.split(" ").length > identity.split(" ").length && isSameAuthorName(name, entry.name))
+      .map(([, entry]) => entry)
+      .sort((x, y) => y.count - x.count);
+    if (!fuller.length) return name;
+    return fuller.length === 1 || fuller[0].count >= 2 * fuller[1].count ? fuller[0].name : name;
+  });
 }
 
 export interface DuplicateMerge {

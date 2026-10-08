@@ -288,3 +288,27 @@ describe("author info", () => {
     expect(formatLifespan({})).toBe("");
   });
 });
+
+describe("completeAuthorNames", () => {
+  const lib = (...authors: string[][]) => authors.map(list => ({ authors: list }));
+  it("completes a partial name with the library's fuller one", async () => {
+    const { completeAuthorNames } = await import("../src/lib/library-view");
+    const library = lib(...Array.from({ length: 6 }, () => ["David Eddings"]), ["Leigh Eddings"]);
+    expect(completeAuthorNames(["Eddings"], library)).toEqual(["David Eddings"]);
+    expect(completeAuthorNames(["David Eddings"], library)).toEqual(["David Eddings"]);
+    expect(completeAuthorNames(["Leigh Eddings"], library)).toEqual(["Leigh Eddings"]);
+    expect(completeAuthorNames(["Isaac Asimov"], library)).toEqual(["Isaac Asimov"]);
+    // deux candidats à égalité : on ne devine pas
+    expect(completeAuthorNames(["Eddings"], lib(["David Eddings"], ["Leigh Eddings"]))).toEqual(["Eddings"]);
+  });
+  it("lets a surname-only result find its work and merges the existing split", async () => {
+    const { createWorkIndex, findLocalWork, planDuplicateMerges } = await import("../src/lib/library-view");
+    const book = (id: string, title: string, authors: string[], isbn13: string, addedAt: string, extra: object = {}) =>
+      ({ id, source: "bnf", sourceId: id, title, authors, isbn13, addedAt, owned: false, favorite: false, status: "TO_READ", ...extra }) as never;
+    const bibliography = book("a", "Le chevalier de rubis / David Eddings ; trad.", ["David Eddings"], "9782266064668", "2026-10-01T10:00:00Z");
+    const result = { source: "manual", sourceId: "m", title: "Le chevalier de rubis", authors: ["Eddings"], isbn13: "9782266142021" } as never;
+    expect(findLocalWork(result, createWorkIndex([bibliography]))).toBe(bibliography);
+    const split = book("b", "Le chevalier de rubis", ["Eddings"], "9782266142021", "2026-10-05T10:00:00Z", { owned: true });
+    expect(planDuplicateMerges([bibliography, split])).toEqual([{ keepId: "a", removeIds: ["b"], changes: { owned: true } }]);
+  });
+});

@@ -7,7 +7,7 @@ import {
   type StoredLibraryBook,
   type LibraryBookUpdate,
 } from "@tsundoku/database";
-import { createWorkIndex, findLocalWork, planDuplicateMerges } from "../lib/library-view";
+import { completeAuthorNames, createWorkIndex, findLocalWork, planDuplicateMerges } from "../lib/library-view";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
 let repositoryPromise: Promise<SqliteLibraryRepository> | null = null;
@@ -83,12 +83,14 @@ export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
  */
 export async function addBookToLibrary(book: BookSearchResult, owned = true): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  const local = findLocalWork(book, createWorkIndex(await repo.list()));
+  const library = await repo.list();
+  const local = findLocalWork(book, createWorkIndex(library));
   if (local) {
     if (owned && !local.owned) await repo.update(local.id, { owned: true, newlyDiscovered: false });
     await repo.refreshMetadata(local.id, toNewBook(book));
   } else {
-    await repo.add(toNewBook(book, { owned }));
+    // Un nom d'auteur incomplet (« Eddings ») rejoint celui de la bibliothèque (« David Eddings »).
+    await repo.add(toNewBook({ ...book, authors: completeAuthorNames(book.authors, library) }, { owned }));
   }
   return repo.list();
 }

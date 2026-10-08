@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, shareAuthor, workTitle, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
+import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, isSameAuthorName, shareAuthor, workTitle, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
 import type { BookSearchResult } from "../src/types";
 
 const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
@@ -177,5 +177,17 @@ describe("shareAuthor", () => {
     expect(shareAuthor([], ["David Eddings"])).toBe(true);
     expect(shareAuthor(["David Eddings"], ["Leigh Eddings", "David Eddings"])).toBe(true);
     expect(shareAuthor(["David Eddings"], ["Isaac Asimov"])).toBe(false);
+  });
+});
+
+describe("incomplete author names", () => {
+  it("matches a surname-only author to the full name, but not another person of the same family", () => {
+    expect(isSameAuthorName("Eddings", "David Eddings")).toBe(true);
+    expect(isSameAuthorName("Eddings, David", "David Eddings")).toBe(true);
+    expect(isSameAuthorName("Tolkien", "J. R. R. Tolkien")).toBe(true);
+    expect(isSameAuthorName("Leigh Eddings", "David Eddings")).toBe(false);
+    expect(isSameAuthorName("", "David Eddings")).toBe(false);
+    expect(shareAuthor(["Eddings"], ["David Eddings", "Leigh Eddings"])).toBe(true);
+    expect(shareAuthor(["Asimov"], ["David Eddings"])).toBe(false);
   });
 });
