@@ -1,7 +1,8 @@
+import { Check, Bookmark, ChevronLeft, Refresh } from "../components/Icons";
 import { Cover } from "../components/Cover";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  authorStats, booksOfAuthor, filterAuthorBooks, formatRefreshDate, plural,
+  authorStats, booksOfAuthor, filterAuthorBooks, formatRefreshDate, groupBySeries, initialsOf, plural,
   type AuthorBookFilter, type AuthorBookSort
 } from "../lib/library-view";
 import { enrichLibraryBooks, refreshAuthor, unfollowAuthor } from "../services/authorLibrary";
@@ -20,6 +21,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string | undefined>();
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   // idle : rien à chercher · running : recherche en cours · done : terminée · partial : plafond atteint
@@ -30,6 +32,9 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   const stats = authorStats(books);
   const withCover = books.filter(book => book.coverUrl).length;
   const withoutCover = books.length - withCover;
+  const groups = useMemo(() => groupBySeries(visible), [visible]);
+  const readPct = stats.total ? (stats.read / stats.total) * 100 : 0;
+  const ownedOnlyPct = stats.total ? (Math.max(0, stats.owned - stats.read) / stats.total) * 100 : 0;
 
   // À l'ouverture : date de dernière actualisation, puis jaquettes manquantes en arrière-plan.
   const booksRef = useRef(books);
@@ -91,37 +96,61 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   const filterButton = (value: AuthorBookFilter, label: string, count: number, extra = "") =>
     <button className={`${filter === value ? "filter active" : "filter"}${extra}`} onClick={() => setFilter(value)}>{label} <span>{count}</span></button>;
 
-  return <>
-    <section className="author-bibliography-header">
-      <div className="author-header-main">
-        <div>
-          <button type="button" className="text-button" onClick={nav.back}>← Retour</button>
-          <p className="eyebrow">Bibliographie suivie</p>
-          <h2>{authorName}</h2>
-          <p>{stats.total} {plural(stats.total, "œuvre")}</p>
-          <div className="author-stat-grid" aria-label="Résumé de la bibliographie">
-            <button type="button" className="author-stat missing" onClick={() => setFilter("MISSING")}><strong>{stats.missing}</strong><span>{plural(stats.missing, "Manquant")}</span></button>
-            <button type="button" className="author-stat owned" onClick={() => setFilter("OWNED")}><strong>{stats.owned}</strong><span>{plural(stats.owned, "Possédé")}</span></button>
-            <button type="button" className="author-stat read" onClick={() => setFilter("READ")}><strong>{stats.read}</strong><span>{plural(stats.read, "Lu")}</span></button>
-          </div>
-        </div>
-        <div className="author-header-actions">
-          <div className="author-refresh-status">
-            <small>Dernière actualisation</small>
-            <strong>{formatRefreshDate(lastRefreshedAt)}</strong>
-            {stats.newlyDiscovered > 0 && <span className="new-count">{stats.newlyDiscovered} {plural(stats.newlyDiscovered, "nouveauté")}</span>}
-          </div>
-          <button type="button" className="refresh-author-button" disabled={refreshBusy} onClick={() => void refresh()}>
-            {refreshBusy ? "Actualisation…" : "↻ Actualiser la bibliographie"}
+  const bookRow = (book: (typeof visible)[number]) =>
+    <article className={`author-book-row ${book.owned ? "owned" : "missing"}`} key={book.id}>
+      <button type="button" className="book-row-main" onClick={() => nav.push({ name: "detail", id: book.id })}>
+        <Cover book={book} variant="mini" />
+        <span>
+          <strong>{book.title}</strong>
+          <em>{[book.seriesVolume != null ? `Tome ${book.seriesVolume}` : "", book.publishedYear ? String(book.publishedYear) : "", book.publisher ?? ""].filter(Boolean).join(" · ")}</em>
+          {book.newlyDiscovered && <b className="new-book-badge">Nouveau</b>}
+        </span>
+      </button>
+      <div className="quick-book-actions">
+        <button type="button" className={book.owned ? "round-toggle owned on" : "round-toggle owned"} aria-label="Possédé" aria-pressed={book.owned}
+          onClick={() => void quickPatch(book.id, { owned: !book.owned })}><Check size={22} /></button>
+        <button type="button" className={book.status === "READ" ? "round-toggle read on" : "round-toggle read"} aria-label="Lu" aria-pressed={book.status === "READ"}
+          onClick={() => void quickPatch(book.id, { status: book.status === "READ" ? "TO_READ" : "READ" })}><Bookmark size={22} filled={book.status === "READ"} /></button>
+      </div>
+    </article>;
+
+  return <div className="author-page">
+    <div className="topbar">
+      <button type="button" className="icon-button" aria-label="Retour" onClick={nav.back}><ChevronLeft size={24} /></button>
+      <div className="topbar-actions">
+        <button type="button" className={refreshBusy ? "icon-button spinning" : "icon-button"} aria-label="Actualiser la bibliographie" disabled={refreshBusy} onClick={() => void refresh()}><Refresh size={22} /></button>
+        <div className="menu-anchor">
+          <button type="button" className="icon-button" aria-label="Plus d’actions" aria-expanded={menuOpen} onClick={() => setMenuOpen(open => !open)}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
           </button>
-          <button type="button" className="danger-button author-delete-button" disabled={deleteBusy} onClick={() => void remove()}>
-            {deleteBusy ? "Suppression…" : "Supprimer l’auteur"}
-          </button>
+          {menuOpen && <div className="menu" role="menu">
+            <button type="button" role="menuitem" className="menu-danger" disabled={deleteBusy} onClick={() => { setMenuOpen(false); void remove(); }}>
+              {deleteBusy ? "Suppression…" : "Supprimer l’auteur et ses livres"}
+            </button>
+          </div>}
         </div>
       </div>
-      {message && <p className="author-refresh-message">{message}</p>}
-      {error && <p className="error">{error}</p>}
-      <p className="author-delete-help">Retire cet auteur et toute sa bibliographie suivie de Tsundoku. Une confirmation sera demandée.</p>
+    </div>
+
+    <div className="author-head">
+      <div className="monogram" aria-hidden="true">{initialsOf(authorName)}</div>
+      <div>
+        <h1>{authorName}</h1>
+        <p>{stats.total} {plural(stats.total, "œuvre")} {plural(stats.total, "suivie")} · actualisé {formatRefreshDate(lastRefreshedAt)}</p>
+        {stats.newlyDiscovered > 0 && <span className="new-count">{stats.newlyDiscovered} {plural(stats.newlyDiscovered, "nouveauté")}</span>}
+      </div>
+    </div>
+
+    {message && <p className="author-refresh-message">{message}</p>}
+    {error && <p className="error">{error}</p>}
+
+    <section className="author-summary" aria-label="Résumé de la bibliographie">
+      <div className="stack-bar" aria-hidden="true"><i className="read" style={{ width: `${readPct}%` }} /><i className="owned" style={{ width: `${ownedOnlyPct}%` }} /></div>
+      <div className="summary-buttons">
+        <button type="button" onClick={() => setFilter("READ")}><span><i className="dot read" />{plural(stats.read, "Lu")}</span><strong>{stats.read}</strong></button>
+        <button type="button" onClick={() => setFilter("OWNED")}><span><i className="dot owned" />{plural(stats.owned, "Possédé")}</span><strong>{stats.owned}</strong></button>
+        <button type="button" onClick={() => setFilter("MISSING")}><span><i className="dot missing" />{plural(stats.missing, "Manquant")}</span><strong className="missing">{stats.missing}</strong></button>
+      </div>
     </section>
 
     {coverStatus === "running" && <p className="cover-status running" role="status">Recherche des jaquettes… {withCover} / {books.length}</p>}
@@ -134,31 +163,26 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
 
     <section className="author-toolbar">
       <div className="filter-row author-filters">
-        {filterButton("ALL", "Tous", stats.total)}
         {filterButton("MISSING", "Manquants", stats.missing, " missing-filter")}
+        {filterButton("ALL", "Tous", stats.total)}
         {filterButton("OWNED", "Possédés", stats.owned)}
         {filterButton("READ", "Lus", stats.read)}
         {filterButton("TO_READ", "Non lus", stats.unread)}
       </div>
-      <select value={sort} onChange={e => setSort(e.target.value as AuthorBookSort)}>
+      <select value={sort} onChange={e => setSort(e.target.value as AuthorBookSort)} aria-label="Trier">
         <option value="MISSING">Manquants d’abord</option>
         <option value="TITLE">Titre</option>
         <option value="DATE">Parution récente</option>
       </select>
     </section>
 
-    <div className="author-book-list author-book-list-flat">
-      {visible.map(book => <article className={`author-book-row ${book.owned ? "owned" : "missing"}`} key={book.id}>
-        <button type="button" className="book-row-main" onClick={() => nav.push({ name: "detail", id: book.id })}>
-          <Cover book={book} variant="mini" pending={coverStatus === "running" && !book.coverUrl} />
-          <span><small>{book.publishedYear ?? "Date inconnue"} {book.newlyDiscovered && <b className="new-book-badge">Nouveau</b>}</small><strong>{book.title}</strong><em>{book.publisher ?? ""}</em></span>
-        </button>
-        <div className="quick-book-actions">
-          <button type="button" className={book.owned ? "state-toggle active-owned" : "state-toggle"} onClick={() => void quickPatch(book.id, { owned: !book.owned })}>{book.owned ? "✓ Possédé" : "✗ Manquant"}</button>
-          <button type="button" className={book.status === "READ" ? "state-toggle active-read" : "state-toggle"} onClick={() => void quickPatch(book.id, { status: book.status === "READ" ? "TO_READ" : "READ" })}>{book.status === "READ" ? "✓ Lu" : "○ Non lu"}</button>
-        </div>
-      </article>)}
-    </div>
+    {groups.map(group => <section key={group.name ?? "standalone"} className="series-group">
+      {(group.name || groups.length > 1) && <div className="series-heading">
+        <h2>{group.name ?? "Hors série"}</h2>
+        <span>{group.books.filter(book => book.owned).length} / {group.books.length}</span>
+      </div>}
+      <div className="author-book-list">{group.books.map(bookRow)}</div>
+    </section>)}
     {visible.length === 0 && <section className="empty-state"><div>📚</div><h2>Aucun livre dans ce filtre</h2><p>Choisis un autre filtre pour voir la bibliographie.</p></section>}
-  </>;
+  </div>;
 }

@@ -152,3 +152,36 @@ describe("getBookLanguageName", () => {
     expect(getBookLanguageName({} as never)).toBe("");
   });
 });
+
+describe("groupBySeries and initialsOf", () => {
+  const book = (title: string, seriesName?: string, seriesVolume?: number) => ({ title, seriesName, seriesVolume }) as never;
+  it("groups by series in volume order, standalone last, flat when no series exists", async () => {
+    const { groupBySeries } = await import("../src/lib/library-view");
+    const groups = groupBySeries([book("Hors 1"), book("Messie", "Dune", 2), book("Dune", "dune", 1), book("Autre", "Fondation", 1), book("Hors 2")]);
+    expect(groups.map(g => g.name)).toEqual(["Dune", "Fondation", undefined]);
+    expect(groups[0].books.map(b => (b as { title: string }).title)).toEqual(["Dune", "Messie"]);
+    expect(groups[2].books).toHaveLength(2);
+    const flat = groupBySeries([book("A"), book("B")]);
+    expect(flat).toHaveLength(1);
+    expect(flat[0].name).toBeUndefined();
+  });
+  it("builds initials", async () => {
+    const { initialsOf } = await import("../src/lib/library-view");
+    expect(initialsOf("Frank Herbert")).toBe("FH");
+    expect(initialsOf("Jean-Claude Van Damme")).toBe("JD");
+    expect(initialsOf("Makyo")).toBe("MA");
+    expect(initialsOf("")).toBe("?");
+  });
+});
+
+describe("titleInitial", () => {
+  it("ignores leading articles and elisions", async () => {
+    const { titleInitial } = await import("../src/components/Cover");
+    expect(titleInitial("Le Messie de Dune")).toBe("M");
+    expect(titleInitial("L'Empereur-Dieu de Dune")).toBe("E");
+    expect(titleInitial("Les Yeux d'Heisenberg")).toBe("Y");
+    expect(titleInitial("Dune")).toBe("D");
+    expect(titleInitial("The Left Hand of Darkness")).toBe("L");
+    expect(titleInitial("")).toBe("?");
+  });
+});

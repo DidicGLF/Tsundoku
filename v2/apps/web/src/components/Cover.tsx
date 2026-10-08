@@ -17,6 +17,15 @@ function shortTitle(title: string): string {
   return title.split(/\s[/:;]\s|\s\(|\s*\[/)[0].trim() || title;
 }
 
+/** Initiale du titre en ignorant l'article (« Le Messie de Dune » → M). */
+export function titleInitial(title: string): string {
+  const articles = /^(le|la|les|un|une|des|du|de|the|a|an|der|die|das|el|los|las|il)$/i;
+  const words = title.trim().replace(/^[LlDd]['’]/, "").split(/\s+/).filter(Boolean);
+  const word = words.find(candidate => !articles.test(candidate)) ?? words[0] ?? "";
+  const letter = [...word.replace(/^[^\p{L}\p{N}]+/u, "")][0];
+  return letter ? letter.toLocaleUpperCase("fr") : "?";
+}
+
 /**
  * Jaquette d'un livre. Sans image (ou si elle ne charge pas), une tuile colorée portant
  * le titre prend la place : l'absence de jaquette doit rester présentable.
@@ -40,7 +49,7 @@ export function Cover({ book, variant = "card", pending = false }: { book: Cover
     aria-hidden="true"
   >
     {variant === "mini"
-      ? <b>{[...title][0]?.toLocaleUpperCase("fr") ?? "?"}</b>
+      ? <b>{titleInitial(title)}</b>
       : <><span className="cover-title">{title}</span>{author && <small className="cover-author">{author}</small>}</>}
   </div>;
 }

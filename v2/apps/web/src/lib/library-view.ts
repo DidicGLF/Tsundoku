@@ -164,6 +164,44 @@ export function filterAuthorBooks(books: LibraryBook[], filter: AuthorBookFilter
   });
 }
 
+export interface SeriesGroup {
+  /** Undefined : livres hors série (ou liste à plat quand aucune série n'est connue). */
+  name?: string;
+  books: LibraryBook[];
+}
+
+/**
+ * Regroupe par série (tomes dans l'ordre), les livres hors série à la fin dans l'ordre reçu.
+ * Sans aucune série connue, renvoie un seul groupe sans titre : la liste reste à plat.
+ */
+export function groupBySeries(books: LibraryBook[]): SeriesGroup[] {
+  const bySeries = new Map<string, SeriesGroup>();
+  const standalone: LibraryBook[] = [];
+  for (const book of books) {
+    const name = book.seriesName?.trim();
+    if (!name) { standalone.push(book); continue; }
+    const key = normalizeText(name);
+    const group = bySeries.get(key) ?? { name, books: [] };
+    group.books.push(book);
+    bySeries.set(key, group);
+  }
+  if (!bySeries.size) return [{ books: standalone }];
+  const groups = [...bySeries.values()].map(group => ({
+    ...group,
+    books: [...group.books].sort((a, b) => (a.seriesVolume ?? Infinity) - (b.seriesVolume ?? Infinity) || byTitle(a, b))
+  })).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "fr"));
+  if (standalone.length) groups.push({ books: standalone });
+  return groups;
+}
+
+/** Initiales d'un nom (« Frank Herbert » → « FH »). */
+export function initialsOf(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  const letters = words.length === 1 ? [...words[0]].slice(0, 2) : [[...words[0]][0], [...words[words.length - 1]][0]];
+  return letters.join("").toLocaleUpperCase("fr");
+}
+
 /** Works of `remote` that have no counterpart yet in `current`. */
 export function findNewWorks(remote: BookSearchResult[], current: LibraryBook[]): BookSearchResult[] {
   return remote.filter(book => !current.some(local => isSameWork(book, local)));
