@@ -31,14 +31,15 @@ function Shell() {
 
   const { route } = nav;
 
-  // Arriver sur « Rechercher » par l'onglet ou l'accueil = nouvelle recherche, champ vide.
-  // Revenir d'un auteur ou d'une fiche garde la recherche en cours.
-  const previousRoute = useRef(route.name);
+  // Ouvrir « Rechercher » par un onglet ou l'accueil = nouvelle recherche, champ vide.
+  // Revenir en arrière depuis un auteur ou une fiche garde la recherche en cours.
   const { clear: clearSearch } = search;
+  const seenTabPresses = useRef(nav.tabPresses);
   useEffect(() => {
-    if (route.name === "add" && previousRoute.current !== "author" && previousRoute.current !== "detail") clearSearch();
-    previousRoute.current = route.name;
-  }, [route, clearSearch]);
+    if (nav.tabPresses === seenTabPresses.current) return;
+    seenTabPresses.current = nav.tabPresses;
+    if (route.name === "add") clearSearch();
+  }, [nav.tabPresses, route.name, clearSearch]);
   const book = route.name === "detail" ? library.find(b => b.id === route.id) : undefined;
 
   const title =

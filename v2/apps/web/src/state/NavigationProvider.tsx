@@ -5,6 +5,8 @@ import { canGoBack, currentRoute, initialNavState, navReducer, type Route } from
 
 interface Navigation {
   route: Route;
+  /** Incrémenté à chaque appui sur un onglet (jamais par un retour arrière). */
+  tabPresses: number;
   /** Onglet de premier niveau : repart de l'accueil. */
   reset(route: Route): void;
   push(route: Route): void;
@@ -30,6 +32,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Navigation>(() => ({
     route: currentRoute(state),
+    tabPresses: state.tabPresses,
     reset: route => dispatch({ type: "reset", route }),
     push: route => dispatch({ type: "push", route }),
     back: () => dispatch({ type: "back" })

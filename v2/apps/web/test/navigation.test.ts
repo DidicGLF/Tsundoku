@@ -30,4 +30,14 @@ describe("navigation stack", () => {
   it("resetting to home empties the history", () => {
     expect(names(run({ type: "reset", route: { name: "add" } }, { type: "reset", route: { name: "home" } }))).toEqual(["home"]);
   });
+  it("counts tab presses but not pushes or back", () => {
+    expect(run().tabPresses).toBe(0);
+    const state = run(
+      { type: "reset", route: { name: "add" } },
+      { type: "push", route: { name: "author", key: "k", authorName: "A" } },
+      { type: "back" }
+    );
+    expect(state.tabPresses).toBe(1);
+    expect(navReducer(state, { type: "reset", route: { name: "add" } }).tabPresses).toBe(2);
+  });
 });
