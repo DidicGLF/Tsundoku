@@ -39,6 +39,20 @@ describe("migrations", () => {
   });
 });
 
+describe("migrating a pre-release database with foreign keys enforced", () => {
+  it("drops parent and child tables even when PRAGMA foreign_keys cannot be switched off", async () => {
+    const old = await createTestAdapter({ ignoreForeignKeysPragma: true });
+    old.raw.run("PRAGMA foreign_keys = ON");
+    old.raw.run("CREATE TABLE books (id TEXT PRIMARY KEY)");
+    old.raw.run("CREATE TABLE editions (id TEXT PRIMARY KEY, book_id TEXT REFERENCES books(id))");
+    old.raw.run("CREATE TABLE library_books (id TEXT PRIMARY KEY)");
+    old.raw.run("INSERT INTO books VALUES ('b1')");
+    old.raw.run("INSERT INTO editions VALUES ('e1', 'b1')");
+    await expect(runMigrations(old)).resolves.toBeUndefined();
+    await expect(new SqliteLibraryRepository(old).add(dune)).resolves.toBeUndefined();
+  });
+});
+
 describe("add / list", () => {
   it("stores a book with authors in order, series and edition data", async () => {
     await repo.add({ ...dune, authors: ["Frank Herbert", "Brian Herbert"], publisher: "Ace", publishedYear: 1965 });

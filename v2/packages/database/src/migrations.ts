@@ -123,9 +123,13 @@ async function dropEverything(db: SqliteAdapter): Promise<void> {
   const tables = await db.query<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
   );
-  await db.execute("PRAGMA foreign_keys = OFF");
-  for (const { name } of tables) await db.execute(`DROP TABLE IF EXISTS "${name}"`);
-  await db.execute("PRAGMA foreign_keys = ON");
+  // PRAGMA foreign_keys is a no-op inside a transaction (the native plugin wraps every
+  // statement in one), so defer the checks instead: they are verified at commit, when
+  // every table is gone and nothing can be violated.
+  await db.transaction(async () => {
+    await db.execute("PRAGMA defer_foreign_keys = ON");
+    for (const { name } of tables) await db.execute(`DROP TABLE IF EXISTS "${name}"`);
+  });
 }
 
 export async function runMigrations(db: SqliteAdapter): Promise<void> {

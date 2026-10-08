@@ -2,7 +2,9 @@ import initSqlJs, { type Database } from "sql.js";
 import type { SqliteAdapter, SqliteResult, SqliteRow } from "../src/adapter";
 
 /** In-memory SQLite adapter (sql.js) used to test the repository against real SQL. */
-export async function createTestAdapter(): Promise<SqliteAdapter & { raw: Database }> {
+export async function createTestAdapter(
+  options: { ignoreForeignKeysPragma?: boolean } = {}
+): Promise<SqliteAdapter & { raw: Database }> {
   const SQL = await initSqlJs();
   const db = new SQL.Database();
   db.run("PRAGMA foreign_keys = ON");
@@ -10,6 +12,9 @@ export async function createTestAdapter(): Promise<SqliteAdapter & { raw: Databa
   return {
     raw: db,
     async execute(sql: string, params: unknown[] = []): Promise<SqliteResult> {
+      // The Capacitor plugin runs each statement inside a transaction, where
+      // PRAGMA foreign_keys is a silent no-op. This option reproduces that.
+      if (options.ignoreForeignKeysPragma && /^\s*PRAGMA\s+foreign_keys/i.test(sql)) return { rowsAffected: 0 };
       db.run(sql, params as never[]);
       return { rowsAffected: db.getRowsModified() };
     },
