@@ -1,4 +1,7 @@
-import { canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, isSameWork, normalizeText, type BookSearchResult } from "@tsundoku/book-sources";
+import {
+  canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, canonicalIsbn, cleanIsbn, isSameWork, normalizeText, shareAuthor, workTitle,
+  type BookSearchResult
+} from "@tsundoku/book-sources";
 import type { ReadingStatus } from "@tsundoku/database";
 import type { LibraryBook } from "../services/library";
 
@@ -200,6 +203,79 @@ export function initialsOf(name: string): string {
   if (!words.length) return "?";
   const letters = words.length === 1 ? [...words[0]].slice(0, 2) : [[...words[0]][0], [...words[words.length - 1]][0]];
   return letters.join("").toLocaleUpperCase("fr");
+}
+
+export interface WorkIndex {
+  byTitle: Map<string, LibraryBook[]>;
+  byIsbn: Map<string, LibraryBook>;
+}
+
+const isbnsOf = (book: { isbn10?: string; isbn13?: string }) =>
+  [canonicalIsbn(book), cleanIsbn(book.isbn10), cleanIsbn(book.isbn13)].filter((value): value is string => Boolean(value));
+
+/** Index des livres de la bibliothèque, pour retrouver l'œuvre d'un résultat sans comparer un par un. */
+export function createWorkIndex(library: LibraryBook[]): WorkIndex {
+  const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map() };
+  for (const book of library) {
+    const key = normalizeText(workTitle(book.title));
+    index.byTitle.set(key, [...(index.byTitle.get(key) ?? []), book]);
+    for (const isbn of isbnsOf(book)) index.byIsbn.set(isbn, book);
+  }
+  return index;
+}
+
+/**
+ * L'œuvre de la bibliothèque correspondant à un résultat : même ISBN, ou même titre d'œuvre
+ * et un auteur en commun. C'est ce qui évite qu'une autre édition crée un doublon.
+ */
+export function findLocalWork(book: BookSearchResult, index: WorkIndex): LibraryBook | undefined {
+  for (const isbn of isbnsOf(book)) {
+    const found = index.byIsbn.get(isbn);
+    if (found) return found;
+  }
+  return (index.byTitle.get(normalizeText(workTitle(book.title))) ?? []).find(local => shareAuthor(book.authors, local.authors));
+}
+
+export interface DuplicateMerge {
+  keepId: string;
+  removeIds: string[];
+  /** Ce que la fiche conservée récupère des doublons (possédé, favori, statut, note). */
+  changes: { owned?: boolean; favorite?: boolean; status?: LibraryBook["status"]; rating?: number };
+}
+
+const statusRank = (status: LibraryBook["status"]) => (status === "READ" ? 3 : status === "READING" ? 2 : 1);
+
+/**
+ * Doublons d'une même œuvre (autre édition ajoutée séparément) : on garde la fiche la plus
+ * ancienne et on lui reporte ce que les autres savent (possédé, favori, avancement, note).
+ */
+export function planDuplicateMerges(library: LibraryBook[]): DuplicateMerge[] {
+  const ordered = [...library].sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime());
+  const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map() };
+  const groups = new Map<string, LibraryBook[]>();
+  for (const book of ordered) {
+    const keeper = findLocalWork(book as unknown as BookSearchResult, index);
+    if (keeper) { groups.get(keeper.id)?.push(book); continue; }
+    groups.set(book.id, [book]);
+    const key = normalizeText(workTitle(book.title));
+    index.byTitle.set(key, [...(index.byTitle.get(key) ?? []), book]);
+    for (const isbn of isbnsOf(book)) index.byIsbn.set(isbn, book);
+  }
+
+  const merges: DuplicateMerge[] = [];
+  for (const [keepId, group] of groups) {
+    if (group.length < 2) continue;
+    const keeper = group[0];
+    const changes: DuplicateMerge["changes"] = {};
+    if (!keeper.owned && group.some(book => book.owned)) changes.owned = true;
+    if (!keeper.favorite && group.some(book => book.favorite)) changes.favorite = true;
+    const best = group.reduce((top, book) => (statusRank(book.status) > statusRank(top.status) ? book : top), keeper);
+    if (statusRank(best.status) > statusRank(keeper.status)) changes.status = best.status;
+    const rating = group.find(book => book.rating != null)?.rating;
+    if (keeper.rating == null && rating != null) changes.rating = rating;
+    merges.push({ keepId, removeIds: group.slice(1).map(book => book.id), changes });
+  }
+  return merges;
 }
 
 /** Works of `remote` that have no counterpart yet in `current`. */

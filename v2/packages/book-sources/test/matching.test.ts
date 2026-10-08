@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, workTitle, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
+import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, shareAuthor, workTitle, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
 import type { BookSearchResult } from "../src/types";
 
 const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
@@ -169,5 +169,13 @@ describe("workTitle and collapsing catalogue noise", () => {
     const b = { title: "Le cri / Nicolas Beuglet", authors: ["Nicolas Beuglet"] };
     expect(isSameWork(a, b)).toBe(true);
     expect(isSameWork(a, { title: "Le cri", authors: ["Makyo"] })).toBe(false);
+  });
+});
+
+describe("shareAuthor", () => {
+  it("accepts unknown authors and any common author, rejects disjoint ones", () => {
+    expect(shareAuthor([], ["David Eddings"])).toBe(true);
+    expect(shareAuthor(["David Eddings"], ["Leigh Eddings", "David Eddings"])).toBe(true);
+    expect(shareAuthor(["David Eddings"], ["Isaac Asimov"])).toBe(false);
   });
 });

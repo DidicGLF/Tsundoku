@@ -185,3 +185,48 @@ describe("titleInitial", () => {
     expect(titleInitial("")).toBe("?");
   });
 });
+
+describe("finding the library work of a search result", () => {
+  const local = (title: string, authors: string[], isbn13?: string, extra: object = {}) =>
+    ({ id: title, title, authors, isbn13, owned: false, ...extra }) as never;
+  const result = (title: string, authors: string[], isbn13?: string) => ({ source: "bnf", sourceId: title, title, authors, isbn13 }) as never;
+
+  it("recognises another edition of a work imported from the author's bibliography", async () => {
+    const { createWorkIndex, findLocalWork } = await import("../src/lib/library-view");
+    const library = [
+      local("Le pion blanc des présages / David Eddings ; [trad. par Dominique Haas]", ["David Eddings"], "9782266000001"),
+      local("La Belgariade", ["David Eddings"], "9782266000002"),
+      local("Polgara la sorcière", ["David Eddings", "Leigh Eddings"], "9782266000003")
+    ];
+    const index = createWorkIndex(library);
+    // ISBN différent, titre de catalogue différent
+    expect(findLocalWork(result("Le Pion blanc des présages", ["David Eddings"], "9782266999999"), index)).toBe(library[0]);
+    // même ISBN, titre sans rapport
+    expect(findLocalWork(result("Autre titre", ["Quelqu'un"], "9782266000002"), index)).toBe(library[1]);
+    // co-auteurs : le premier auteur diffère mais un auteur est en commun
+    expect(findLocalWork(result("Polgara la sorcière", ["Leigh Eddings", "David Eddings"], "9782266777777"), index)).toBe(library[2]);
+    // même titre, autre auteur : ce n'est pas la même œuvre
+    expect(findLocalWork(result("La Belgariade", ["Quelqu'un d'autre"], "9782266888888"), index)).toBeUndefined();
+    // titre inconnu
+    expect(findLocalWork(result("Les Dômes de feu", ["David Eddings"], "9782266555555"), index)).toBeUndefined();
+  });
+});
+
+describe("planDuplicateMerges", () => {
+  const lb = (id: string, title: string, authors: string[], isbn13: string, addedAt: string, extra: object = {}) =>
+    ({ id, title, authors, isbn13, addedAt, owned: false, favorite: false, status: "TO_READ", ...extra }) as never;
+  it("keeps the oldest entry and carries owned/status/rating over from its duplicates", async () => {
+    const { planDuplicateMerges } = await import("../src/lib/library-view");
+    const merges = planDuplicateMerges([
+      lb("a", "Le pion blanc des présages / David Eddings", ["David Eddings"], "9782266000001", "2026-10-01T10:00:00Z"),
+      lb("b", "Le Pion blanc des présages", ["David Eddings"], "9782266999999", "2026-10-05T10:00:00Z", { owned: true, status: "READ", rating: 4, favorite: true }),
+      lb("c", "Polgara la sorcière", ["David Eddings", "Leigh Eddings"], "9782266000003", "2026-10-02T10:00:00Z"),
+      lb("d", "La Belgariade", ["David Eddings"], "9782266000002", "2026-10-03T10:00:00Z")
+    ]);
+    expect(merges).toEqual([{ keepId: "a", removeIds: ["b"], changes: { owned: true, favorite: true, status: "READ", rating: 4 } }]);
+  });
+  it("does nothing when there are no duplicates", async () => {
+    const { planDuplicateMerges } = await import("../src/lib/library-view");
+    expect(planDuplicateMerges([lb("a", "Dune", ["Frank Herbert"], "1", "2026-10-01T10:00:00Z"), lb("b", "Dune", ["Autre"], "2", "2026-10-02T10:00:00Z")])).toEqual([]);
+  });
+});

@@ -112,9 +112,19 @@ export function isSameWork(a: BookIdentity, b: BookIdentity): boolean {
   if (isbn10A && isbn10A === b.isbn10?.replace(/[^0-9Xx]/g, "").toUpperCase()) return true;
   const title = normalizeText(workTitle(a.title));
   if (!title || title !== normalizeText(workTitle(b.title))) return false;
-  const authorA = canonicalAuthorIdentity(a.authors[0] ?? "");
-  const authorB = canonicalAuthorIdentity(b.authors[0] ?? "");
-  return !authorA || !authorB || authorA === authorB;
+  return shareAuthor(a.authors, b.authors);
+}
+
+/**
+ * Two author lists are compatible when either is unknown or they share an author
+ * (co-written books: « David et Leigh Eddings » matches « David Eddings »).
+ */
+export function shareAuthor(a: string[], b: string[]): boolean {
+  const identities = (authors: string[]) => new Set(authors.map(canonicalAuthorIdentity).filter(Boolean));
+  const setA = identities(a);
+  const setB = identities(b);
+  if (!setA.size || !setB.size) return true;
+  return [...setA].some(identity => setB.has(identity));
 }
 
 /** Mentions de genre que le catalogue ajoute après « : » ; ce ne sont pas de vrais sous-titres. */

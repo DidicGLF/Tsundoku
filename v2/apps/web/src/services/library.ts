@@ -7,6 +7,7 @@ import {
   type StoredLibraryBook,
   type LibraryBookUpdate,
 } from "@tsundoku/database";
+import { createWorkIndex, findLocalWork, planDuplicateMerges } from "../lib/library-view";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
 let repositoryPromise: Promise<SqliteLibraryRepository> | null = null;
@@ -57,18 +58,55 @@ function toNewBook(book: BookSearchResult, extra: Pick<NewLibraryBook, "owned" |
 }
 
 export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
-  return (await repository()).list();
+  const repo = await repository();
+  const library = await repo.list();
+  const merges = planDuplicateMerges(library);
+  if (!merges.length) return library;
+  try {
+    await repo.batch(async () => {
+      for (const merge of merges) {
+        if (Object.keys(merge.changes).length) await repo.update(merge.keepId, merge.changes);
+        for (const id of merge.removeIds) await repo.remove(id);
+      }
+    });
+    return await repo.list();
+  } catch (error) {
+    // La fusion est un confort : en cas d'échec, la bibliothèque s'ouvre quand même telle quelle.
+    console.error("Fusion des doublons impossible:", error);
+    return library;
+  }
 }
 
+/**
+ * Ajoute un livre. S'il correspond déjà à une œuvre de la bibliothèque (autre édition, autre ISBN,
+ * titre de catalogue différent), c'est cette œuvre qui est mise à jour : pas de doublon.
+ */
 export async function addBookToLibrary(book: BookSearchResult, owned = true): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  await repo.add(toNewBook(book, { owned }));
+  const local = findLocalWork(book, createWorkIndex(await repo.list()));
+  if (local) {
+    if (owned && !local.owned) await repo.update(local.id, { owned: true, newlyDiscovered: false });
+    await repo.refreshMetadata(local.id, toNewBook(book));
+  } else {
+    await repo.add(toNewBook(book, { owned }));
+  }
   return repo.list();
 }
 
 export async function addBooksToLibrary(books: BookSearchResult[], owned = false, newlyDiscovered = false): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  await repo.addMany(books.map(book => toNewBook(book, { owned, newlyDiscovered })));
+  const index = createWorkIndex(await repo.list());
+  const fresh: BookSearchResult[] = [];
+  const upgrade = new Set<string>();
+  for (const book of books) {
+    const local = findLocalWork(book, index);
+    if (!local) fresh.push(book);
+    else if (owned && !local.owned) upgrade.add(local.id);
+  }
+  await repo.batch(async () => {
+    for (const id of upgrade) await repo.update(id, { owned: true, newlyDiscovered: false });
+    await repo.addMany(fresh.map(book => toNewBook(book, { owned, newlyDiscovered })));
+  });
   return repo.list();
 }
 
