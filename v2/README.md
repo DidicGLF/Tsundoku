@@ -43,3 +43,10 @@ porte le titre.
 `images-na.ssl-images-amazon.com/images/P/<ISBN-10>…`, qui n'est pas une API officielle et dont la
 réutilisation relève des conditions d'Amazon. Elle convient à un usage perso ou entre proches.
 Pour la couper : `amazon: false` dans `apps/web/src/services/coverSources.ts`.
+
+## Informations sur les auteurs
+
+La page d'un auteur affiche sa description, ses dates, un résumé et sa photo quand ils existent :
+Wikipédia (français) d'abord, Open Library en secours pour les dates. Une requête par auteur, mise en
+cache 30 jours (7 jours si rien n'est trouvé). Le texte de Wikipédia est sous licence CC BY-SA : le lien
+vers l'article reste visible sous le résumé.

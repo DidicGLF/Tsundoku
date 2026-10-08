@@ -256,3 +256,35 @@ describe("nextQuotaReset", () => {
     expect(new Date(nextQuotaReset(Date.parse("2026-10-08T07:00:01Z"))).toISOString()).toBe("2026-10-09T07:00:00.000Z");
   });
 });
+
+describe("author info", () => {
+  it("accepts a matching writer article and rejects homonyms and disambiguation pages", async () => {
+    const { isAuthorSummary } = await import("../src/lib/author-info");
+    const writer = { type: "standard", title: "David Eddings", description: "écrivain américain", extract: "David Carroll Eddings, né le 7 juillet 1931 à Spokane, est un écrivain américain de fantasy." };
+    expect(isAuthorSummary(writer, "David Eddings")).toBe(true);
+    expect(isAuthorSummary({ ...writer, type: "disambiguation" }, "David Eddings")).toBe(false);
+    expect(isAuthorSummary({ type: "standard", title: "David Eddings", description: "footballeur anglais", extract: "David Eddings est un footballeur." }, "David Eddings")).toBe(false);
+    expect(isAuthorSummary({ type: "standard", title: "Autre", description: "écrivain français", extract: "Un écrivain." }, "David Eddings")).toBe(false);
+    expect(isAuthorSummary(null, "David Eddings")).toBe(false);
+  });
+  it("builds the info from Wikipedia, takes missing years from Open Library, and falls back to Open Library", async () => {
+    const { buildAuthorInfo, formatLifespan, yearsFromDescription } = await import("../src/lib/author-info");
+    expect(yearsFromDescription("écrivain russe naturalisé américain (1920–1992)")).toEqual({ birthYear: 1920, deathYear: 1992 });
+    const wikipedia = { description: "écrivain américain", extract: "Résumé.", thumbnail: { source: "https://upload.wikimedia.org/x.jpg" }, content_urls: { desktop: { page: "https://fr.wikipedia.org/wiki/David_Eddings" } } };
+    const info = buildAuthorInfo(wikipedia, { birth_date: "1931", death_date: "2009", work_count: 253 });
+    expect(info).toMatchObject({ description: "écrivain américain", bio: "Résumé.", birthYear: 1931, deathYear: 2009, workCount: 253, source: "wikipedia" });
+    expect(formatLifespan(info!)).toBe("1931–2009");
+    const withYears = buildAuthorInfo({ description: "écrivain russe naturalisé américain (1920–1992)", extract: "x" }, null);
+    expect(withYears).toMatchObject({ description: "écrivain russe naturalisé américain", birthYear: 1920, deathYear: 1992 });
+    const fallback = buildAuthorInfo(null, { birth_date: "2 January 1920", bio: { value: "English bio" }, photos: [-1, 7425151], work_count: 1456 });
+    expect(fallback).toMatchObject({ bio: "English bio", photoUrl: "https://covers.openlibrary.org/a/id/7425151-M.jpg", birthYear: 1920, source: "open-library" });
+    expect(buildAuthorInfo(null, { name: "Inconnu" })).toBeNull();
+    expect(buildAuthorInfo(null, { name: "Jean Martin", work_count: 4 })).toBeNull();
+    const fromText = buildAuthorInfo({ description: "écrivain et journaliste français", extract: "Nicolas Beuglet, né le 28 mai 1974, est un écrivain." }, { work_count: 8 });
+    expect(fromText).toMatchObject({ birthYear: 1974, deathYear: undefined });
+    const died = buildAuthorInfo({ description: "écrivain américain", extract: "David Eddings, né le 7 juillet 1931 à Spokane et mort le 2 juin 2009 à Carson City, est un écrivain." }, null);
+    expect(died).toMatchObject({ birthYear: 1931, deathYear: 2009 });
+    expect(formatLifespan({ birthYear: 1974 })).toBe("né en 1974");
+    expect(formatLifespan({})).toBe("");
+  });
+});

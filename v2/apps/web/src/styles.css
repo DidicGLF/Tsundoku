@@ -1857,3 +1857,53 @@ select {
   color: var(--accent-text);
   font-variant-numeric: tabular-nums;
 }
+
+.author-photo {
+  flex: 0 0 60px;
+  width: 60px;
+  height: 60px;
+  border-radius: 30px;
+  object-fit: cover;
+  background: var(--surface-2);
+}
+
+.author-head .author-tagline {
+  margin: 4px 0 0;
+  color: var(--text-soft);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.author-bio {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.author-bio p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.author-bio p.clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.author-bio-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.author-bio-footer a {
+  color: var(--accent-text);
+}

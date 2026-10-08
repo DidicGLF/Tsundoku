@@ -1,5 +1,7 @@
 import { Check, Bookmark, ChevronLeft, Refresh } from "../components/Icons";
 import { Cover } from "../components/Cover";
+import { useAuthorInfo } from "../hooks/useAuthorInfo";
+import { formatLifespan } from "../lib/author-info";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   authorStats, booksOfAuthor, filterAuthorBooks, formatRefreshDate, groupBySeries, initialsOf, plural,
@@ -22,6 +24,9 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   const [refreshBusy, setRefreshBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [bioOpen, setBioOpen] = useState(false);
+  const [photoBroken, setPhotoBroken] = useState(false);
+  const info = useAuthorInfo(authorName);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   // idle : rien à chercher · running : recherche en cours · done : terminée · partial : plafond atteint
@@ -133,13 +138,25 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
     </div>
 
     <div className="author-head">
-      <div className="monogram" aria-hidden="true">{initialsOf(authorName)}</div>
+      {info?.photoUrl && !photoBroken
+        ? <img className="author-photo" src={info.photoUrl} alt="" onError={() => setPhotoBroken(true)} />
+        : <div className="monogram" aria-hidden="true">{initialsOf(authorName)}</div>}
       <div>
         <h1>{authorName}</h1>
+        {info && (info.description || formatLifespan(info)) &&
+          <p className="author-tagline">{[info.description ? info.description.charAt(0).toUpperCase() + info.description.slice(1) : "", formatLifespan(info)].filter(Boolean).join(" · ")}</p>}
         <p>{stats.total} {plural(stats.total, "œuvre")} {plural(stats.total, "suivie")} · actualisé {formatRefreshDate(lastRefreshedAt)}</p>
         {stats.newlyDiscovered > 0 && <span className="new-count">{stats.newlyDiscovered} {plural(stats.newlyDiscovered, "nouveauté")}</span>}
       </div>
     </div>
+
+    {info?.bio && <section className="author-bio">
+      <p className={bioOpen ? "" : "clamped"}>{info.bio}</p>
+      <div className="author-bio-footer">
+        <button type="button" className="text-button" onClick={() => setBioOpen(!bioOpen)}>{bioOpen ? "Réduire" : "Lire la suite"}</button>
+        <span>Source : {info.pageUrl ? <a href={info.pageUrl} target="_blank" rel="noreferrer">Wikipédia</a> : "Open Library"}</span>
+      </div>
+    </section>}
 
     {message && <p className="author-refresh-message">{message}</p>}
     {error && <p className="error">{error}</p>}
