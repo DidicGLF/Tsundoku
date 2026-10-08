@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
+import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, workTitle, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
 import type { BookSearchResult } from "../src/types";
 
 const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
@@ -139,5 +139,35 @@ describe("isbn13To10", () => {
     expect(isbn10To13(isbn13To10("9782266063470")!)).toBe("9782266063470");
     expect(isbn13To10("9791032700000")).toBeUndefined();
     expect(isbn13To10("12345")).toBeUndefined();
+  });
+});
+
+describe("workTitle and collapsing catalogue noise", () => {
+  it("strips responsibility, edition and genre mentions but keeps real subtitles", () => {
+    expect(workTitle("L'ultime avertissement : thriller / Nicolas Beuglet")).toBe("L'ultime avertissement");
+    expect(workTitle("Le Cri : thriller (Nouvelle éd.)")).toBe("Le Cri");
+    expect(workTitle("L'archipel des oubliés : thriller ([Éd. spéciale]")).toBe("L'archipel des oubliés");
+    expect(workTitle("Déguster le noir : nouvelles / Nicolas B")).toBe("Déguster le noir");
+    expect(workTitle("Astérix : Le Gaulois")).toBe("Astérix : Le Gaulois");
+    expect(workTitle("Dune")).toBe("Dune");
+    expect(workTitle("(Titre)")).toBe("(Titre)");
+  });
+  it("merges the same work catalogued three ways, shows the cleanest title, and keeps distinct subtitles apart", () => {
+    const book = (title: string, author: string, isbn13?: string): BookSearchResult =>
+      ({ source: "bnf", sourceId: title, title, authors: [author], isbn13 } as BookSearchResult);
+    const works = collapseToWorks([
+      book("L'ultime avertissement : thriller / Nicolas Beuglet", "Nicolas Beuglet", "9782266000001"),
+      book("L'ultime avertissement", "Nicolas BEUGLET", "9782266000002"),
+      book("L'ultime avertissement : thriller (Nouvelle éd.)", "Nicolas Beuglet", "9782266000003"),
+      book("Astérix : Le Gaulois", "Goscinny"),
+      book("Astérix : La Serpe d'or", "Goscinny")
+    ]);
+    expect(works.map(w => w.title).sort()).toEqual(["Astérix : La Serpe d'or", "Astérix : Le Gaulois", "L'ultime avertissement"]);
+  });
+  it("treats differently catalogued editions as the same work for library matching", () => {
+    const a = { title: "Le Cri : thriller (Nouvelle éd.)", authors: ["Nicolas Beuglet"] };
+    const b = { title: "Le cri / Nicolas Beuglet", authors: ["Nicolas Beuglet"] };
+    expect(isSameWork(a, b)).toBe(true);
+    expect(isSameWork(a, { title: "Le cri", authors: ["Makyo"] })).toBe(false);
   });
 });

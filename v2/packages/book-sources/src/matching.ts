@@ -110,20 +110,40 @@ export function isSameWork(a: BookIdentity, b: BookIdentity): boolean {
   if (isbn13A && isbn13A === b.isbn13?.replace(/\D/g, "")) return true;
   const isbn10A = a.isbn10?.replace(/[^0-9Xx]/g, "").toUpperCase();
   if (isbn10A && isbn10A === b.isbn10?.replace(/[^0-9Xx]/g, "").toUpperCase()) return true;
-  const title = normalizeText(a.title);
-  if (!title || title !== normalizeText(b.title)) return false;
+  const title = normalizeText(workTitle(a.title));
+  if (!title || title !== normalizeText(workTitle(b.title))) return false;
   const authorA = canonicalAuthorIdentity(a.authors[0] ?? "");
   const authorB = canonicalAuthorIdentity(b.authors[0] ?? "");
   return !authorA || !authorB || authorA === authorB;
+}
+
+/** Mentions de genre que le catalogue ajoute après « : » ; ce ne sont pas de vrais sous-titres. */
+const GENERIC_SUBTITLE = /\s:\s*(roman|romans|thriller|thrillers|nouvelles?|récit|récits|essai|poèmes?|poésie|policier|roman policier|polar|science-fiction|fantasy|théâtre|pièce|témoignage|document|contes?|bande dessinée|bd|manga|album|biographie|autobiographie|texte intégral|édition intégrale|intégrale)\s*$/i;
+
+/**
+ * Titre d'œuvre, sans bruit de catalogue : mention de responsabilité (« / Nicolas Beuglet »),
+ * mention d'édition entre parenthèses ou crochets en fin de titre, mention de genre (« : thriller »).
+ * Les vrais sous-titres sont conservés (« Astérix : Le Gaulois » ≠ « Astérix : La Serpe d'or »).
+ */
+export function workTitle(title: string): string {
+  let t = title.split(/\s\/\s?/)[0].trim();
+  for (let previous = ""; previous !== t;) {
+    previous = t;
+    t = t.replace(/\s*(\([^)]*\)?|\[[^\]]*\]?)\s*$/, "").replace(GENERIC_SUBTITLE, "").trim();
+  }
+  return t.replace(/[\s.,;:]+$/g, "") || title;
 }
 
 /** Collapses editions into works (title + canonical author) and sorts newest first. */
 export function collapseToWorks(results: BookSearchResult[]): BookSearchResult[] {
   const works = new Map<string, BookSearchResult>();
   for (const book of results) {
-    const key = `${normalizeText(book.title)}::${canonicalAuthorIdentity(book.authors[0] ?? "")}`;
+    const key = `${normalizeText(workTitle(book.title))}::${canonicalAuthorIdentity(book.authors[0] ?? "")}`;
     const previous = works.get(key);
-    works.set(key, previous ? mergeBooks(previous, book) : book);
+    if (!previous) { works.set(key, book); continue; }
+    // On affiche le titre le plus court des éditions regroupées (le moins chargé de bruit de catalogue).
+    const title = previous.title.length <= book.title.length ? previous.title : book.title;
+    works.set(key, { ...mergeBooks(previous, book), title });
   }
   return [...works.values()].sort((a, b) => (b.publishedYear ?? -1) - (a.publishedYear ?? -1) || a.title.localeCompare(b.title, "fr"));
 }
