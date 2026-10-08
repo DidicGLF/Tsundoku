@@ -93,7 +93,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
         <option value="all">Recherche générale</option><option value="author">Auteur</option><option value="title">Titre</option><option value="isbn">ISBN</option>
       </select>
       <select value={search.provider} onChange={e => search.setProvider(e.target.value as SearchProvider)}>
-        <option value="all">Toutes les sources</option><option value="bnf">BnF</option><option value="open-library">Open Library</option><option value="google-books">Google Books</option>
+        <option value="all">Toutes les sources</option><option value="bnf">BnF</option><option value="open-library">Open Library</option><option value="google-books">{googleKeyKnown ? "Google Books" : "Google Books (clé requise)"}</option>
       </select>
       <button disabled={search.busy}>{search.busy ? "Recherche…" : "Rechercher"}</button>
     </form>

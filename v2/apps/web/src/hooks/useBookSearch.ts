@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState, type FormEvent } from "react";
 import type { BookSearchResult } from "@tsundoku/book-sources";
 import {
-  enrichSearchResults, mergeSearchResults, searchBooks, searchCompleteAuthorBibliography,
+  enrichSearchResults, friendlySearchError, mergeSearchResults, searchBooks, searchCompleteAuthorBibliography,
   type BookSearchField, type BookSearchLanguage, type SearchProvider
 } from "../services/bookSearch";
+import { hasGoogleBooksApiKey } from "../services/credentials";
 import { usePreferences } from "../state/PreferencesProvider";
 
 const PAGE_SIZE = 40;
@@ -64,7 +65,8 @@ export function useBookSearch() {
       setSearched({ q: q.trim(), field });
       enrichInBackground(found, language, searchId);
     } catch (x) {
-      if (isCurrent()) setError(x instanceof Error ? x.message : "Recherche impossible");
+      const hasKey = await hasGoogleBooksApiKey().catch(() => false);
+      if (isCurrent()) setError(friendlySearchError(x, hasKey));
     } finally {
       if (isCurrent()) setBusy(false);
     }

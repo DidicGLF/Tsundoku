@@ -235,3 +235,13 @@ describe("planDuplicateMerges", () => {
     expect(planDuplicateMerges([lb("a", "Dune", ["Frank Herbert"], "1", "2026-10-01T10:00:00Z"), lb("b", "Dune", ["Autre"], "2", "2026-10-02T10:00:00Z")])).toEqual([]);
   });
 });
+
+describe("friendlySearchError", () => {
+  it("explains quota and availability errors in French", async () => {
+    const { friendlySearchError } = await import("../src/services/bookSearch");
+    expect(friendlySearchError(new Error("HTTP 429 while requesting www.googleapis.com"), false)).toContain("ajoute une clé gratuite");
+    expect(friendlySearchError(new Error("HTTP 429 while requesting www.googleapis.com"), true)).toContain("Réessaie dans quelques minutes");
+    expect(friendlySearchError(new Error("HTTP 503 while requesting catalogue.bnf.fr"), false)).toBe("BnF est momentanément indisponible (erreur 503). Réessaie dans un instant ou change de source.");
+    expect(friendlySearchError(new Error("Délai dépassé en interrogeant openlibrary.org"), false)).toBe("Délai dépassé en interrogeant openlibrary.org");
+  });
+});

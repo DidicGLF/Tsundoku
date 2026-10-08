@@ -195,3 +195,22 @@ export async function searchCompleteAuthorBibliography(
     throw error;
   }
 }
+
+/**
+ * Message lisible pour une erreur de recherche. Les erreurs HTTP brutes
+ * (« HTTP 429 while requesting www.googleapis.com ») ne disent pas quoi faire.
+ */
+export function friendlySearchError(error: unknown, hasGoogleKey: boolean): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const match = /^HTTP (\d{3}) while requesting (\S+)/.exec(message);
+  if (!match) return message || "Recherche impossible.";
+  const [, status, host] = match;
+  const label = host.includes("googleapis") ? "Google Books" : host.includes("bnf.fr") ? "BnF" : host.includes("openlibrary") ? "Open Library" : host;
+  if (status === "429") {
+    const advice = label === "Google Books" && !hasGoogleKey
+      ? "Sans clé, son quota anonyme est partagé et souvent épuisé : ajoute une clé gratuite dans Paramètres, ou choisis « Toutes les sources »."
+      : "Réessaie dans quelques minutes.";
+    return `${label} limite le nombre de requêtes (quota atteint). ${advice}`;
+  }
+  return `${label} est momentanément indisponible (erreur ${status}). Réessaie dans un instant ou change de source.`;
+}
