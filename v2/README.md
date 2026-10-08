@@ -32,3 +32,14 @@ ne jamais modifier une migration déjà publiée, en ajouter une nouvelle.
 Une base issue des builds de prototype (table `library_books`) est supprimée et recréée au démarrage.
 
 La clé Google Books est optionnelle : elle se saisit dans les paramètres de l'app.
+
+## Sources de jaquettes
+
+Les jaquettes sont cherchées par étapes (cache → Open Library par ISBN → Amazon par ISBN-10 →
+Open Library par titre → Google Books si une clé est configurée). Sans image, une tuile générée
+porte le titre.
+
+**Avant toute distribution publique :** l'étape Amazon utilise l'adresse d'images
+`images-na.ssl-images-amazon.com/images/P/<ISBN-10>…`, qui n'est pas une API officielle et dont la
+réutilisation relève des conditions d'Amazon. Elle convient à un usage perso ou entre proches.
+Pour la couper : `amazon: false` dans `apps/web/src/services/coverSources.ts`.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
+import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
 import type { BookSearchResult } from "../src/types";
 
 const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
@@ -126,5 +126,18 @@ describe("isUnusableNotice", () => {
     expect(isUnusableNotice({ ...notice, isbn13: "9782266063470" })).toBe(false);
     expect(isUnusableNotice({ ...notice, isbn10: "2266063472" })).toBe(false);
     expect(isUnusableNotice({ source: "open-library", authors: [] })).toBe(false);
+  });
+});
+
+describe("isbn13To10", () => {
+  it("converts 978 ISBN-13 to ISBN-10, including the X check digit", () => {
+    expect(isbn13To10("9782290418871")).toBe("2290418870");
+    expect(isbn13To10("9780306406157")).toBe("0306406152");
+    expect(isbn13To10("9780804429573")).toBe("080442957X");
+  });
+  it("round-trips with isbn10To13 and refuses 979 or malformed input", () => {
+    expect(isbn10To13(isbn13To10("9782266063470")!)).toBe("9782266063470");
+    expect(isbn13To10("9791032700000")).toBeUndefined();
+    expect(isbn13To10("12345")).toBeUndefined();
   });
 });

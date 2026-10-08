@@ -43,15 +43,18 @@ export function rememberCover(book: BookSearchResult, url: string): void {
   save(COVER_KEY, covers);
 }
 
-export function recentlyMissed(book: BookSearchResult, now = Date.now()): boolean {
+/** `scope` sépare les échecs d'une source de ceux des autres (vide = recherche par titre). */
+const missKey = (book: BookSearchResult, scope: string) => scope ? `${scope}|${coverKey(book)}` : coverKey(book);
+
+export function recentlyMissed(book: BookSearchResult, now = Date.now(), scope = ""): boolean {
   misses ??= load<Record<string, number>>(MISS_KEY);
-  const at = misses[coverKey(book)];
+  const at = misses[missKey(book, scope)];
   return typeof at === "number" && now - at < MISS_TTL_MS;
 }
 
-export function rememberMiss(book: BookSearchResult, now = Date.now()): void {
+export function rememberMiss(book: BookSearchResult, now = Date.now(), scope = ""): void {
   misses ??= load<Record<string, number>>(MISS_KEY);
-  misses[coverKey(book)] = now;
+  misses[missKey(book, scope)] = now;
   save(MISS_KEY, misses);
 }
 

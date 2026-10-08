@@ -20,6 +20,16 @@ export function cleanIsbn(value?: string): string | undefined {
   return isbn && (isbn.length === 10 || isbn.length === 13) ? isbn : undefined;
 }
 
+/** ISBN-13 en 978… → ISBN-10 (les 979… n'en ont pas). */
+export function isbn13To10(value: string): string | undefined {
+  const isbn13 = cleanIsbn(value);
+  if (!isbn13 || isbn13.length !== 13 || !isbn13.startsWith("978") || !/^\d{13}$/.test(isbn13)) return undefined;
+  const core = isbn13.slice(3, 12);
+  const sum = [...core].reduce((total, digit, index) => total + (10 - index) * Number(digit), 0);
+  const check = (11 - (sum % 11)) % 11;
+  return `${core}${check === 10 ? "X" : check}`;
+}
+
 export function isbn10To13(value: string): string | undefined {
   const isbn10 = cleanIsbn(value);
   if (!isbn10 || isbn10.length !== 10 || !/^\d{9}[\dX]$/.test(isbn10)) return undefined;

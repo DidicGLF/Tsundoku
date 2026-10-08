@@ -1,8 +1,9 @@
 import {
-  GoogleBooksClient, canonicalAuthorDisplay, canonicalIsbn, cleanCatalogTitle, cleanIsbn, getJson,
+  GoogleBooksClient, canonicalAuthorDisplay, canonicalIsbn, cleanCatalogTitle, cleanIsbn, getJson, isbn13To10,
   isConfidentCoverMatch, isSameEdition, mergeSearchResults,
   type BookSearchLanguage, type BookSearchResult
 } from "@tsundoku/book-sources";
+import { COVER_SOURCES } from "./coverSources";
 import { coverKey, recentlyMissed, rememberCover, rememberMiss, withCachedCovers } from "./coverCache";
 import { getCredentialStore } from "./credentials";
 import { rankByLanguage } from "./language";
@@ -18,6 +19,8 @@ const googleBooks = new GoogleBooksClient(getCredentialStore());
  */
 const TITLE_LOOKUP_LIMIT = 150;
 const GOOGLE_LOOKUP_LIMIT = 40;
+/** Une requête d'en-têtes (~0,16 s) par livre : 4 en parallèle, 300 livres en une dizaine de secondes. */
+const AMAZON_LOOKUP_LIMIT = 300;
 /** Les jaquettes trouvées sont publiées par lots, pas à la toute fin. */
 const BATCH_SIZE = 20;
 
@@ -75,6 +78,36 @@ async function coversFromIsbn(books: BookSearchResult[]): Promise<Map<string, st
 
   for (const covers of partials) for (const [key, url] of covers) result.set(key, url);
   return result;
+}
+
+/** ISBN-10 d'un livre : l'adresse d'images d'Amazon n'accepte que lui. */
+function isbn10Of(book: BookSearchResult): string | undefined {
+  const own = cleanIsbn(book.isbn10);
+  if (own?.length === 10) return own;
+  const isbn13 = canonicalIsbn(book);
+  return isbn13 ? isbn13To10(isbn13) : undefined;
+}
+
+/**
+ * Amazon répond toujours 200 : pour un livre inconnu l'image fait 43 octets (pixel vide).
+ * Une requête HEAD suffit donc à savoir si la jaquette existe, sans la télécharger.
+ */
+async function coversFromAmazon(books: BookSearchResult[]): Promise<Map<string, string>> {
+  const found = new Map<string, string>();
+  await mapWithConcurrency(books, 4, async book => {
+    const isbn = isbn10Of(book);
+    if (!isbn) return;
+    const url = `https://images-na.ssl-images-amazon.com/images/P/${isbn}.01.LZZZZZZZ.jpg`;
+    try {
+      const response = await fetch(url, { method: "HEAD" });
+      const size = Number(response.headers.get("content-length") ?? 0);
+      if (response.ok && size > 2000) found.set(coverKey(book), url);
+      else if (response.ok) rememberMiss(book, Date.now(), "amazon");
+    } catch {
+      // réseau ou blocage : on réessaiera, ce n'est pas un « livre sans jaquette »
+    }
+  });
+  return found;
 }
 
 /**
@@ -144,6 +177,7 @@ async function hasGoogleKey(): Promise<boolean> {
  * `onProgress` reçoit la liste à jour après chaque étape : les jaquettes apparaissent au
  * fil de l'eau au lieu d'attendre la plus lente.
  *  1. cache local ; 2. Open Library par ISBN (lots) et par titre pour les notices sans ISBN ;
+ *  2b. Amazon par ISBN-10 (interrupteur dans coverSources.ts) ;
  *  3. Open Library par titre pour le reste ; 4. Google Books, seulement si une clé est configurée
  *     (gain mesuré faible sur les bibliographies : l'essentiel vient d'Open Library).
  */
@@ -172,9 +206,18 @@ export async function enrichSearchResults(
     for (let start = 0; start < todo.length; start += BATCH_SIZE) apply(await coversFromTitle(todo.slice(start, start + BATCH_SIZE)));
   };
 
-  // Les lots d'ISBN (une requête pour 50 livres) et les notices sans ISBN avancent en parallèle.
+  /** Amazon, seulement pour les livres à ISBN encore sans jaquette (exacte à l'édition, donc préférable au titre). */
+  const amazonStage = async () => {
+    if (!COVER_SOURCES.amazon) return;
+    const todo = current
+      .filter(book => !book.coverUrl && hasIsbn(book) && !recentlyMissed(book, Date.now(), "amazon"))
+      .slice(0, AMAZON_LOOKUP_LIMIT);
+    for (let start = 0; start < todo.length; start += BATCH_SIZE) apply(await coversFromAmazon(todo.slice(start, start + BATCH_SIZE)));
+  };
+
+  // Les lots d'ISBN (une requête pour 50 livres) puis Amazon, et les notices sans ISBN, avancent en parallèle.
   await Promise.all([
-    coversFromIsbn(current).then(apply),
+    coversFromIsbn(current).then(apply).then(amazonStage),
     titleStage(current.filter(book => !hasIsbn(book)))
   ]);
   await titleStage(current.filter(book => !book.coverUrl));
