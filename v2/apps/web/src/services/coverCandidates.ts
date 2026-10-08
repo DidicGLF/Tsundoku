@@ -1,5 +1,5 @@
 import { cleanIsbn, getJson, type BookSearchResult } from "@tsundoku/book-sources";
-import { findAmazonCover } from "./covers";
+import { findAmazonCover, googleCoverCandidates } from "./covers";
 
 export interface CoverCandidate {
   id: string;
@@ -23,6 +23,8 @@ interface Inputs {
   isbn: string;
   exactOpenLibrary: boolean;
   amazonUrl?: string;
+  /** Miniatures renvoyées par Google Books pour cet ISBN. */
+  googleCovers?: Array<{ url: string; label: string }>;
   /** Jaquettes de l'édition elle-même (la première est celle de l'adresse par ISBN). */
   editionCovers: number[];
   workCovers: number[];
@@ -52,6 +54,10 @@ export function assembleCandidates(input: Inputs): CoverCandidate[] {
     out.push({ id: "ol-isbn", url, thumb: `https://covers.openlibrary.org/b/isbn/${input.isbn}-M.jpg`, label: "Cette édition (Open Library)", exact: true });
   }
   if (input.amazonUrl) out.push({ id: "amazon", url: input.amazonUrl, thumb: input.amazonUrl, label: "Cette édition (Amazon)", exact: true });
+
+  for (const google of input.googleCovers ?? []) {
+    if (!out.some(candidate => candidate.url === google.url)) out.push({ id: `g-${out.length}`, url: google.url, thumb: google.url, label: google.label, exact: true });
+  }
 
   for (const id of input.editionCovers.slice(1)) {
     if (id > 0 && !seen.has(id)) { seen.add(id); out.push({ id: `ed-${id}`, url: large(id), thumb: medium(id), label: "Cette édition, autre image", exact: true }); }
@@ -87,9 +93,10 @@ export async function fetchCoverCandidates(book: Pick<BookSearchResult, "isbn13"
   const isbn = cleanIsbn(book.isbn13) ?? cleanIsbn(book.isbn10);
   if (!isbn) return [];
 
-  const [exactOpenLibrary, amazonUrl, edition] = await Promise.all([
+  const [exactOpenLibrary, amazonUrl, googleCovers, edition] = await Promise.all([
     imageLoads(`https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg?default=false`),
     findAmazonCover({ source: "manual", sourceId: "", title: "", authors: [], isbn13: book.isbn13, isbn10: book.isbn10 }).catch(() => undefined),
+    googleCoverCandidates(isbn).catch(() => []),
     getJson<{ covers?: number[]; works?: Array<{ key?: string }> }>(`https://openlibrary.org/isbn/${isbn}.json`, { timeoutMs: 8000, retries: 0 }).catch(() => null)
   ]);
 
@@ -102,7 +109,7 @@ export async function fetchCoverCandidates(book: Pick<BookSearchResult, "isbn13"
     : [null, null];
 
   return assembleCandidates({
-    isbn, exactOpenLibrary, amazonUrl,
+    isbn, exactOpenLibrary, amazonUrl, googleCovers,
     editionCovers: edition?.covers ?? [],
     workCovers: work?.covers ?? [],
     otherEditions: editions?.entries ?? []

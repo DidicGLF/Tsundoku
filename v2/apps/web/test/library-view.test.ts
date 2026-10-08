@@ -389,3 +389,15 @@ describe("cover image sizing", () => {
     expect(fitSize(1, 5000)).toEqual({ width: 1, height: 640 });
   });
 });
+
+describe("Google covers in the picker", () => {
+  it("adds Google thumbnails after the edition's own covers, without duplicates", async () => {
+    const { assembleCandidates } = await import("../src/services/coverCandidates");
+    const list = assembleCandidates({
+      isbn: "2266033751", exactOpenLibrary: true, amazonUrl: "https://a/x.jpg", editionCovers: [1], workCovers: [],
+      otherEditions: [], googleCovers: [{ url: "https://g/1.jpg", label: "Google Books" }, { url: "https://g/1.jpg", label: "Google Books (autre fiche)" }, { url: "https://g/2.jpg", label: "Google Books (autre fiche)" }]
+    });
+    expect(list.map(c => c.id)).toEqual(["ol-isbn", "amazon", "g-2", "g-3"]);
+    expect(list.filter(c => c.label.startsWith("Google")).map(c => c.url)).toEqual(["https://g/1.jpg", "https://g/2.jpg"]);
+  });
+});

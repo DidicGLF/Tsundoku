@@ -6,6 +6,7 @@ import {
 import { COVER_SOURCES } from "./coverSources";
 import { coverKey, recentlyMissed, rememberCover, rememberMiss, withCachedCovers } from "./coverCache";
 import { getCredentialStore } from "./credentials";
+import { googleQuotaResetAt, markGoogleQuotaExhausted } from "./googleQuota";
 import { rankByLanguage } from "./language";
 
 const googleBooks = new GoogleBooksClient(getCredentialStore());
@@ -87,6 +88,24 @@ function isbn10Of(book: BookSearchResult): string | undefined {
   if (own?.length === 10) return own;
   const isbn13 = canonicalIsbn(book);
   return isbn13 ? isbn13To10(isbn13) : undefined;
+}
+
+/**
+ * Jaquettes proposées par Google Books pour un ISBN (une requête de l'API, donc une clé). Rien sans clé,
+ * ou une fois le quota du jour atteint (le 429 est mémorisé pour ne pas insister).
+ */
+export async function googleCoverCandidates(isbn: string): Promise<Array<{ url: string; label: string }>> {
+  if (googleQuotaResetAt() || !(await hasGoogleKey())) return [];
+  try {
+    const volumes = await googleBooks.search(isbn, "all", 0, "isbn");
+    return volumes
+      .filter(volume => volume.coverUrl)
+      .slice(0, 4)
+      .map((volume, index) => ({ url: https(volume.coverUrl!), label: index === 0 ? "Google Books" : "Google Books (autre fiche)" }));
+  } catch (error) {
+    if (/HTTP 429/.test(String((error as Error)?.message))) markGoogleQuotaExhausted();
+    return [];
+  }
 }
 
 /** Adresse de la jaquette Amazon d'un livre, si elle existe (une requête d'en-têtes). */
