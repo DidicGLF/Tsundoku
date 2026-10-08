@@ -50,6 +50,7 @@ function toNewBook(book: BookSearchResult, extra: Pick<NewLibraryBook, "owned" |
     pageCount: book.pageCount,
     language: book.language,
     description: book.description,
+    collection: book.collection,
     coverUrl: book.coverUrl,
     seriesName: book.seriesName,
     seriesVolume: book.seriesVolume,

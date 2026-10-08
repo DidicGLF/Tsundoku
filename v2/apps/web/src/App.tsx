@@ -80,7 +80,7 @@ function Shell() {
       {route.name === "settings" && <SettingsScreen />}
       {/* key : changer d'auteur repart d'un état propre (filtres, messages). */}
       {route.name === "author" && <AuthorScreen key={route.key} authorKey={route.key} authorName={route.authorName} />}
-      {route.name === "detail" && book && <BookDetailScreen key={book.id} book={book} />}
+      {route.name === "detail" && book && <BookDetailScreen key={book.id} book={book} onFindSimilar={(label, query) => { void search.runSimilar(label, query); nav.push({ name: "add" }); }} />}
     </main>
   </div>;
 }

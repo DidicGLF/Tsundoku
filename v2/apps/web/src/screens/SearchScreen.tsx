@@ -103,6 +103,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       </select>
       <button disabled={search.busy}>{search.busy ? "Recherche…" : "Rechercher"}</button>
     </form>
+    {search.similar && <p className="cover-status similar-banner" role="status">{search.similar.label} <span>· BnF, éditions françaises</span></p>}
     {error && <p className="error">{error}</p>}
     {search.notice && !error && <p className="cover-status" role="status">{search.notice}</p>}
     {suggestGoogleKey && <p className="settings-help">
@@ -116,7 +117,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       <p>{looksLikeIsbn
         ? `Aucune fiche pour l'ISBN ${search.searched?.q} dans BnF et Open Library${googleKeyKnown ? "" : " (Google Books n'est interrogé qu'avec une clé, à ajouter dans les paramètres)"}. Les catalogues ne connaissent pas toutes les éditions : ajoute-le à la main, il sera rattaché à l'œuvre si elle est déjà dans ta bibliothèque.`
         : `Rien pour « ${search.searched?.q} ». Essaie une autre orthographe, une autre source, ou ajoute le livre à la main.`}</p>
-      {!isAuthorSearch && field !== "author" && <ManualAdd isbn={looksLikeIsbn ? search.searched?.q : undefined} initialTitle={looksLikeIsbn ? "" : search.searched?.q} onAdd={async (book, owned) => { await add(book, owned); setManualDone(book.title); }} />}
+      {!search.similar && !isAuthorSearch && field !== "author" && <ManualAdd isbn={looksLikeIsbn ? search.searched?.q : undefined} initialTitle={looksLikeIsbn ? "" : search.searched?.q} onAdd={async (book, owned) => { await add(book, owned); setManualDone(book.title); }} />}
     </section>}
     {manualDone && <p className="cover-status" role="status">« {manualDone} » a été ajouté à ta bibliothèque.</p>}
 

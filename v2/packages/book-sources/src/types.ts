@@ -14,6 +14,8 @@ export interface BookSearchResult {
   pageCount?: number;
   language?: string;
   description?: string;
+  /** Éditorial collection (« Pocket. Science-fiction »), when the catalogue gives it. */
+  collection?: string;
   coverUrl?: string;
   seriesName?: string;
   seriesVolume?: number;

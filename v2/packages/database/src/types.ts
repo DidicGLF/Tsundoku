@@ -16,6 +16,8 @@ export interface StoredLibraryBook {
   pageCount?: number;
   language?: string;
   description?: string;
+  /** Editorial collection of the owned edition, e.g. « Pocket. Science-fiction ». */
+  collection?: string;
   coverUrl?: string;
   status: ReadingStatus;
   favorite: boolean;
@@ -45,6 +47,7 @@ export interface NewLibraryBook {
   pageCount?: number;
   language?: string;
   description?: string;
+  collection?: string;
   coverUrl?: string;
   seriesName?: string;
   seriesVolume?: number;
@@ -61,6 +64,7 @@ export interface EditionUpdate {
   publishedYear?: number;
   pageCount?: number;
   language?: string;
+  collection?: string;
   coverUrl?: string | null;
 }
 

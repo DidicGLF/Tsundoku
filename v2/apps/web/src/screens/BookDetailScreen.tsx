@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { canonicalAuthorIdentity } from "@tsundoku/book-sources";
+import { canonicalAuthorIdentity, collectionBase, publisherName } from "@tsundoku/book-sources";
 import type { ReadingStatus } from "@tsundoku/database";
 import { Check, ChevronLeft, Heart, BookOpen, Star } from "../components/Icons";
 import { Cover, hueOf } from "../components/Cover";
@@ -7,6 +7,7 @@ import {
   bookDatesLine, displayAuthors, pageReached, primaryAuthor, progressUpdateFor, ratingLabels, readPercent
 } from "../lib/library-view";
 import { getBookLanguageName } from "../services/language";
+import type { SimilarBooksQuery } from "../services/bookSearch";
 import { removeBookFromLibrary, updateLibraryBook, type LibraryBook } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
@@ -15,7 +16,7 @@ const STATUSES: Array<[ReadingStatus, string]> = [["TO_READ", "À lire"], ["READ
 const PROGRESS_SHORTCUTS: Array<[string, number]> = [["Début", 5], ["25 %", 25], ["Moitié", 50], ["75 %", 75], ["Presque fini", 95]];
 const SUMMARY_PREVIEW = 220;
 
-export function BookDetailScreen({ book }: { book: LibraryBook }) {
+export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; onFindSimilar?: (label: string, query: SimilarBooksQuery) => void }) {
   const { setLibrary } = useLibrary();
   const nav = useNavigation();
   const [error, setError] = useState("");
@@ -58,12 +59,22 @@ export function BookDetailScreen({ book }: { book: LibraryBook }) {
   const page = pageReached(book, percent);
   const facts: Array<[string, string]> = [
     ["Éditeur", book.publisher ?? ""],
+    ["Collection", book.collection ?? ""],
     ["Parution", book.publishedYear ? String(book.publishedYear) : ""],
     ["Pages", book.pageCount ? String(book.pageCount) : ""],
     ["Langue", getBookLanguageName(book)],
     ["ISBN", book.isbn13 ?? book.isbn10 ?? ""]
   ];
   const shownFacts = facts.filter(([, value]) => value);
+  const publisher = publisherName(book.publisher);
+  const collection = collectionBase(book.collection);
+  const authorName = author && author !== "Auteur inconnu" ? author : undefined;
+  // Autres livres du même éditeur / de la même collection / du même auteur (BnF).
+  const similar: Array<[string, string, SimilarBooksQuery]> = [];
+  if (publisher && authorName) similar.push([`Même éditeur, même auteur`, `Livres de ${authorName} chez ${publisher}`, { publisher, author: authorName }]);
+  if (collection) similar.push([`Même collection`, `Collection ${collection}`, { collection }]);
+  if (collection && authorName) similar.push([`Même collection, même auteur`, `${authorName} dans la collection ${collection}`, { collection, author: authorName }]);
+  if (publisher && !authorName) similar.push([`Même éditeur`, `Éditeur ${publisher}`, { publisher }]);
   const description = book.description?.trim();
   const longSummary = Boolean(description && description.length > SUMMARY_PREVIEW);
 
@@ -132,6 +143,14 @@ export function BookDetailScreen({ book }: { book: LibraryBook }) {
     {shownFacts.length > 0 && <dl className="book-facts">
       {shownFacts.map(([label, value]) => <div key={label} className={label === "ISBN" ? "wide" : undefined}><dt>{label}</dt><dd>{value}</dd></div>)}
     </dl>}
+
+    {onFindSimilar && similar.length > 0 && <section className="similar-block" aria-label="Autres livres">
+      <strong>Autres livres</strong>
+      <div className="similar-links">
+        {similar.map(([label, banner, query]) =>
+          <button key={label} type="button" className="chip" onClick={() => onFindSimilar(banner, query)}>{label}</button>)}
+      </div>
+    </section>}
 
     <div className="book-remove">
       <button type="button" className="link-danger" disabled={deleteBusy} onClick={() => void remove()}>

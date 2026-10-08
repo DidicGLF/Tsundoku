@@ -214,11 +214,12 @@ export function initialsOf(name: string): string {
 }
 
 /** L'édition d'un livre (résultat de recherche ou fiche) sous la forme attendue pour remplacer celle d'une fiche. */
-export function editionOf(book: { isbn10?: string; isbn13?: string; publisher?: string; publishedYear?: number; pageCount?: number; language?: string; coverUrl?: string }): EditionUpdate {
+export function editionOf(book: { isbn10?: string; isbn13?: string; publisher?: string; collection?: string; publishedYear?: number; pageCount?: number; language?: string; coverUrl?: string }): EditionUpdate {
   return {
     isbn13: canonicalIsbn(book) ?? cleanIsbn(book.isbn13),
     isbn10: cleanIsbn(book.isbn10),
     publisher: book.publisher,
+    collection: book.collection,
     publishedYear: book.publishedYear,
     pageCount: book.pageCount,
     language: book.language,

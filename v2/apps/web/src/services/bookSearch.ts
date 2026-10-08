@@ -1,6 +1,6 @@
 import {
   BnfClient, GoogleBooksClient, OpenLibraryClient, canonicalIsbn, isUnusableNotice, mergeSearchResults, normalizeText as normalize,
-  type BookSearchField, type BookSearchLanguage, type BookSearchResult
+  type BookSearchField, type BookSearchLanguage, type BookSearchResult, type SimilarBooksQuery
 } from "@tsundoku/book-sources";
 import { withCachedCovers } from "./coverCache";
 import { getCredentialStore } from "./credentials";
@@ -85,6 +85,16 @@ export async function searchBooks(
   // Sans clé, le quota anonyme de Google est épuisé : inutile de perdre une requête.
   if ((await hasGoogleKey()) && !googleQuotaResetAt()) requests.push(search(googleBooks));
   return gather(requests, language, onProgress, onNotice);
+}
+
+/* ---- Livres similaires : même éditeur, même collection, même auteur ---- */
+
+export type { SimilarBooksQuery } from "@tsundoku/book-sources";
+
+/** Une page (100 notices BnF) d'autres livres du même éditeur / de la même collection / du même auteur. */
+export async function searchSimilarBooks(query: SimilarBooksQuery, offset = 0, language: BookSearchLanguage = "all"): Promise<{ books: BookSearchResult[]; hasMore: boolean }> {
+  const page = await bnf.searchSimilar(query, offset);
+  return { books: prepare(page.books, language), hasMore: page.rawCount >= 100 };
 }
 
 /* ---- Bibliographie complète d'un auteur ---- */

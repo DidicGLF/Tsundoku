@@ -50,7 +50,7 @@ export async function enrichLibraryBooks(
 
   const persist = (enriched: BookSearchResult[]) => {
     const matches = enriched.flatMap(book => {
-      if (!book.coverUrl && !book.description && !book.pageCount && !book.language) return [];
+      if (!book.coverUrl && !book.description && !book.pageCount && !book.language && !book.collection) return [];
       const local = localBooks.find(candidate => isSameWork(book, candidate));
       if (!local) return [];
       // Chaque livre est écrit une fois, et une seconde si sa jaquette arrive à une étape suivante.

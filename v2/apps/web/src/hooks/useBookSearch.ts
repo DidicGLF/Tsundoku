@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState, type FormEvent } from "react";
 import type { BookSearchResult } from "@tsundoku/book-sources";
 import {
-  enrichSearchResults, friendlySearchError, mergeSearchResults, searchBooks, searchCompleteAuthorBibliography,
-  type BookSearchField, type BookSearchLanguage, type SearchProvider
+  enrichSearchResults, friendlySearchError, mergeSearchResults, searchBooks, searchCompleteAuthorBibliography, searchSimilarBooks,
+  type BookSearchField, type BookSearchLanguage, type SearchProvider, type SimilarBooksQuery
 } from "../services/bookSearch";
 import { hasGoogleBooksApiKey } from "../services/credentials";
 import { usePreferences } from "../state/PreferencesProvider";
@@ -24,6 +24,8 @@ export function useBookSearch() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  /** Recherche « même éditeur / collection / auteur » en cours, avec son libellé. */
+  const [similar, setSimilar] = useState<{ label: string; query: SimilarBooksQuery } | null>(null);
   /** Recherche terminée (même sans résultat) : sert à afficher « aucun résultat » et l'ajout manuel. */
   const [searched, setSearched] = useState<{ q: string; field: BookSearchField } | null>(null);
 
@@ -46,6 +48,7 @@ export function useBookSearch() {
     setError("");
     setNotice("");
     setSearched(null);
+    setSimilar(null);
     setResults([]);
     setShowOtherLanguages(showOthers);
     setCanLoadMore(false);
@@ -84,8 +87,39 @@ export function useBookSearch() {
     setError("");
     setNotice("");
     setSearched(null);
+    setSimilar(null);
     setBusy(false);
   }, []);
+
+  /** Affiche les autres livres du même éditeur / de la même collection / du même auteur. */
+  const runSimilar = useCallback(async (label: string, query: SimilarBooksQuery) => {
+    const searchId = ++currentSearch.current;
+    const isCurrent = () => searchId === currentSearch.current;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    setResults([]);
+    setQ("");
+    setSimilar({ label, query });
+    setSearched(null);
+    setShowOtherLanguages(false);
+    setNoPreferredResults(false);
+    setActiveLanguage(preferredLanguage);
+    try {
+      const { books, hasMore } = await searchSimilarBooks(query, 0, preferredLanguage);
+      if (!isCurrent()) return;
+      setResults(books);
+      setOffset(100);
+      setCanLoadMore(hasMore);
+      setSearched({ q: label, field: "all" });
+      enrichInBackground(books, preferredLanguage, searchId);
+    } catch (x) {
+      const hasKey = await hasGoogleBooksApiKey().catch(() => false);
+      if (isCurrent()) setError(friendlySearchError(x, hasKey));
+    } finally {
+      if (isCurrent()) setBusy(false);
+    }
+  }, [preferredLanguage, enrichInBackground]);
 
   const submit = useCallback((e: FormEvent) => { e.preventDefault(); void run(preferredLanguage, false); }, [run, preferredLanguage]);
   const searchAllLanguages = useCallback(() => run("all", true), [run]);
@@ -96,6 +130,15 @@ export function useBookSearch() {
     setError("");
     try {
       const searchId = currentSearch.current;
+      if (similar) {
+        const { books, hasMore } = await searchSimilarBooks(similar.query, offset, activeLanguage);
+        if (searchId !== currentSearch.current) return;
+        setResults(current => mergeSearchResults([...current, ...books]));
+        setOffset(current => current + 100);
+        setCanLoadMore(hasMore);
+        enrichInBackground(books, activeLanguage, searchId);
+        return;
+      }
       const found = await searchBooks(q, provider, activeLanguage, offset, field);
       if (searchId !== currentSearch.current) return;
       setResults(current => mergeSearchResults([...current, ...found]));
@@ -107,13 +150,13 @@ export function useBookSearch() {
     } finally {
       setBusy(false);
     }
-  }, [busy, canLoadMore, q, provider, activeLanguage, offset, field, enrichInBackground]);
+  }, [busy, canLoadMore, q, provider, activeLanguage, offset, field, similar, enrichInBackground]);
 
   return {
     q, setQ, provider, setProvider, field, setField,
     results, canLoadMore, activeLanguage, showOtherLanguages, setShowOtherLanguages,
-    noPreferredResults, busy, error, notice, searched,
-    submit, searchAllLanguages, loadMore, clear
+    noPreferredResults, busy, error, notice, searched, similar,
+    submit, searchAllLanguages, loadMore, clear, runSimilar
   };
 }
 

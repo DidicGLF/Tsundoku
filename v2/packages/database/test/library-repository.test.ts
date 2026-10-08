@@ -57,6 +57,39 @@ describe("upgrading from schema version 1", () => {
   });
 });
 
+describe("upgrading from schema version 2", () => {
+  it("moves a BnF « Collection : … » note into the collection column and drops catalogue notes from the description", async () => {
+    const old = await createTestAdapter();
+    await runMigrations(old, 2);
+    const now = "2026-01-01T00:00:00Z";
+    for (const [id, description] of [["1", "Collection : Pocket. Science-fiction"], ["2", "Code à barres commercial : EAN 9782811207984"], ["3", "x".repeat(150)]]) {
+      await old.execute("INSERT INTO books(id,title,description,source,source_id,created_at,updated_at) VALUES(?,?,?,'bnf',?,?,?)", [id, `Livre ${id}`, description, id, now, now]);
+      await old.execute("INSERT INTO editions(id,book_id,created_at,updated_at) VALUES(?,?,?,?)", [`e${id}`, id, now, now]);
+      await old.execute("INSERT INTO user_books(id,user_id,book_id,edition_id,created_at,updated_at) VALUES(?,'local',?,?,?,?)", [`u${id}`, id, `e${id}`, now, now]);
+    }
+    await runMigrations(old);
+    const list = await new SqliteLibraryRepository(old).list();
+    const byTitle = (t: string) => list.find(b => b.title === t)!;
+    expect(byTitle("Livre 1")).toMatchObject({ collection: "Pocket. Science-fiction", description: undefined });
+    expect(byTitle("Livre 2")).toMatchObject({ collection: undefined, description: undefined });
+    expect(byTitle("Livre 3").description).toHaveLength(150);
+  });
+});
+
+describe("collection", () => {
+  it("is stored with the edition, kept by setEdition and filled in by refreshMetadata without overwriting", async () => {
+    await repo.add({ ...dune, collection: "Pocket. Science-fiction" });
+    const [{ id }] = await repo.list();
+    expect((await repo.list())[0].collection).toBe("Pocket. Science-fiction");
+    await repo.refreshMetadata(id, { ...dune, collection: "Autre" });
+    expect((await repo.list())[0].collection).toBe("Pocket. Science-fiction");
+    await repo.setEdition(id, { collection: "J'ai lu. Fantasy" });
+    expect((await repo.list())[0].collection).toBe("J'ai lu. Fantasy");
+    await repo.addMany([{ ...dune, sourceId: "OL2", isbn13: "9780000000002", title: "Autre", collection: "Pocket" }]);
+    expect((await repo.list()).find(b => b.title === "Autre")?.collection).toBe("Pocket");
+  });
+});
+
 describe("migrating a pre-release database with foreign keys enforced", () => {
   it("drops parent and child tables even when PRAGMA foreign_keys cannot be switched off", async () => {
     const old = await createTestAdapter({ ignoreForeignKeysPragma: true });

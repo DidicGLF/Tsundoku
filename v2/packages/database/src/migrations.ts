@@ -112,6 +112,16 @@ const migrations: string[][] = [
     `ALTER TABLE user_books ADD COLUMN rating INTEGER`,
     `DROP INDEX IF EXISTS idx_reading_sessions_book`,
     `DROP TABLE IF EXISTS reading_sessions`
+  ],
+  // 3 — editorial collection of an edition (« Pocket. Science-fiction »)
+  [
+    `ALTER TABLE editions ADD COLUMN collection TEXT`,
+    // BnF catalogue notes were stored as the description: keep the collection, drop the other notes.
+    `UPDATE editions SET collection = (
+       SELECT trim(substr(b.description, 14)) FROM books b
+       WHERE b.id = editions.book_id AND b.description LIKE 'Collection : %'
+     ) WHERE collection IS NULL`,
+    `UPDATE books SET description = NULL WHERE source = 'bnf' AND description IS NOT NULL AND length(description) <= 100`
   ]
 ];
 

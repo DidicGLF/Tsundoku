@@ -62,6 +62,7 @@ function fillMissing(preferred: BookSearchResult, other: BookSearchResult): Book
     pageCount: preferred.pageCount ?? other.pageCount,
     language: preferred.language ?? other.language,
     description: preferred.description ?? other.description,
+    collection: preferred.collection ?? other.collection,
     coverUrl: preferred.coverUrl ?? other.coverUrl,
     seriesName: preferred.seriesName ?? other.seriesName,
     seriesVolume: preferred.seriesVolume ?? other.seriesVolume
@@ -140,6 +141,18 @@ export function shareAuthor(a: string[], b: string[]): boolean {
   const listB = known(b);
   if (!listA.length || !listB.length) return true;
   return listA.some(x => listB.some(y => isSameAuthorName(x, y)));
+}
+
+/** Nom d'éditeur sans la ville : « Pocket (Paris) » → « Pocket ». */
+export function publisherName(raw?: string): string | undefined {
+  const name = raw?.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  return name || undefined;
+}
+
+/** Collection principale, sans sous-collection : « Pocket. Science-fiction : fantasy » → « Pocket. Science-fiction ». */
+export function collectionBase(collection?: string): string | undefined {
+  const base = collection?.split(/\s:\s/)[0].trim();
+  return base || undefined;
 }
 
 /** Mentions de genre que le catalogue ajoute après « : » ; ce ne sont pas de vrais sous-titres. */

@@ -1913,3 +1913,26 @@ select {
 .author-bio-footer a {
   color: var(--accent-text);
 }
+
+.similar-block {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.similar-block strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.similar-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.similar-banner span {
+  color: var(--muted);
+}

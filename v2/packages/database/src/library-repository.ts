@@ -17,7 +17,7 @@ export class SqliteLibraryRepository {
         b.title, b.description, b.language, b.source, b.source_id,
         COALESCE(e.cover_url, b.cover_url) AS cover_url,
         COALESCE(e.published_year, b.first_published_year) AS published_year,
-        e.publisher, e.isbn10, e.isbn13, e.page_count,
+        e.publisher, e.collection, e.isbn10, e.isbn13, e.page_count,
         s.name AS series_name, bs.volume_number AS series_volume,
         ub.status, ub.owned, ub.favorite, ub.newly_discovered, ub.rating, ub.progress_value, ub.progress_total,
         ub.started_at, ub.finished_at, ub.created_at, ub.updated_at
@@ -54,6 +54,7 @@ export class SqliteLibraryRepository {
       authors: authorsByBook.get(String(row.book_id)) ?? [],
       publishedYear: numberOrUndefined(row.published_year),
       publisher: stringOrUndefined(row.publisher),
+      collection: stringOrUndefined(row.collection),
       isbn10: stringOrUndefined(row.isbn10),
       isbn13: stringOrUndefined(row.isbn13),
       pageCount: numberOrUndefined(row.page_count),
@@ -172,9 +173,9 @@ export class SqliteLibraryRepository {
                    input.publishedYear ?? null, input.source, input.sourceId, now, now]
         }, {
           sql: `INSERT INTO editions
-                (id,book_id,title,publisher,published_year,isbn10,isbn13,page_count,language,cover_url,created_at,updated_at)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-          params: [editionId, bookId, input.title, input.publisher ?? null, input.publishedYear ?? null,
+                (id,book_id,title,publisher,collection,published_year,isbn10,isbn13,page_count,language,cover_url,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          params: [editionId, bookId, input.title, input.publisher ?? null, input.collection ?? null, input.publishedYear ?? null,
                    input.isbn10 ?? null, input.isbn13 ?? null, input.pageCount ?? null, input.language ?? null,
                    input.coverUrl ?? null, now, now]
         });
@@ -273,9 +274,9 @@ export class SqliteLibraryRepository {
       );
       await this.db.execute(
         `INSERT INTO editions
-         (id,book_id,title,publisher,published_year,isbn10,isbn13,page_count,language,cover_url,created_at,updated_at)
-         VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [editionId, bookId, input.title, input.publisher ?? null, input.publishedYear ?? null,
+         (id,book_id,title,publisher,collection,published_year,isbn10,isbn13,page_count,language,cover_url,created_at,updated_at)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [editionId, bookId, input.title, input.publisher ?? null, input.collection ?? null, input.publishedYear ?? null,
          input.isbn10 ?? null, input.isbn13 ?? null, input.pageCount ?? null, input.language ?? null,
          input.coverUrl ?? null, now, now]
       );
@@ -365,11 +366,12 @@ export class SqliteLibraryRepository {
     await this.db.execute(
       `UPDATE editions SET
          isbn10 = COALESCE(?, isbn10), isbn13 = COALESCE(?, isbn13), publisher = COALESCE(?, publisher),
+         collection = COALESCE(?, collection),
          published_year = COALESCE(?, published_year), page_count = COALESCE(?, page_count),
          language = COALESCE(?, language), cover_url = ${cover === undefined ? "cover_url" : "?"}, updated_at = ?
        WHERE id = ?`,
       [
-        edition.isbn10 ?? null, edition.isbn13 ?? null, edition.publisher ?? null,
+        edition.isbn10 ?? null, edition.isbn13 ?? null, edition.publisher ?? null, edition.collection ?? null,
         edition.publishedYear ?? null, edition.pageCount ?? null, edition.language ?? null,
         ...(cover === undefined ? [] : [cover]), now, row.edition_id
       ]
@@ -402,11 +404,11 @@ export class SqliteLibraryRepository {
       if (row.edition_id) {
         await this.db.execute(
           `UPDATE editions SET
-             publisher = COALESCE(publisher, ?), published_year = COALESCE(published_year, ?),
+             publisher = COALESCE(publisher, ?), collection = COALESCE(collection, ?), published_year = COALESCE(published_year, ?),
              isbn10 = COALESCE(isbn10, ?), isbn13 = COALESCE(isbn13, ?), page_count = COALESCE(page_count, ?),
              language = COALESCE(language, ?), cover_url = COALESCE(cover_url, ?), updated_at = ?
            WHERE id = ?`,
-          [input.publisher ?? null, input.publishedYear ?? null, input.isbn10 ?? null, input.isbn13 ?? null,
+          [input.publisher ?? null, input.collection ?? null, input.publishedYear ?? null, input.isbn10 ?? null, input.isbn13 ?? null,
            input.pageCount ?? null, input.language ?? null, input.coverUrl ?? null, now, row.edition_id]
         );
       }
