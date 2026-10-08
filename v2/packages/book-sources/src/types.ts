@@ -1,4 +1,4 @@
-export type BookSourceId = "open-library" | "google-books" | "bnf";
+export type BookSourceId = "open-library" | "google-books" | "bnf" | "manual";
 export type BookSearchLanguage = "all" | "fr" | "en" | "de" | "es" | "it";
 export type BookSearchField = "all" | "title" | "author" | "isbn";
 

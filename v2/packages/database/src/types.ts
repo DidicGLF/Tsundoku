@@ -1,5 +1,5 @@
 export type ReadingStatus = "TO_READ" | "READING" | "READ" | "ON_HOLD" | "ABANDONED";
-export type BookSourceName = "open-library" | "google-books" | "bnf";
+export type BookSourceName = "open-library" | "google-books" | "bnf" | "manual";
 
 /** A book of the user's library, flattened from books + editions + user_books. */
 export interface StoredLibraryBook {

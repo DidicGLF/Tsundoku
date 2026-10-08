@@ -5,7 +5,7 @@ import { Cover } from "./Cover";
 import { displayAuthors, readPercent, type LibraryState } from "../lib/library-view";
 import { Check, Heart, Star } from "./Icons";
 
-const sourceLabels = { "google-books": "Google Books", bnf: "BnF", "open-library": "Open Library" } as const;
+const sourceLabels = { "google-books": "Google Books", bnf: "BnF", "open-library": "Open Library", manual: "Saisie manuelle" } as const;
 
 export function SearchCard({ b, onAdd, onTrack, state = "none" }: {
   b: BookSearchResult; onAdd?: (b: BookSearchResult) => void; onTrack?: (b: BookSearchResult) => void; state?: LibraryState;

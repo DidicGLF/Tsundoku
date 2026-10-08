@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, collapseToWorks, isSameWork, type BookSearchResult } from "@tsundoku/book-sources";
+import { cleanIsbn, canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, collapseToWorks, isSameWork, type BookSearchResult } from "@tsundoku/book-sources";
 import { SearchCard } from "../components/BookCards";
+import { ManualAdd } from "../components/ManualAdd";
 import type { BookSearch } from "../hooks/useBookSearch";
 import { createWorkIndex, libraryStateOf, plural } from "../lib/library-view";
 import { followAuthor } from "../services/authorLibrary";
@@ -27,6 +28,10 @@ export function SearchScreen({ search }: { search: BookSearch }) {
   }, []);
 
   const workIndex = useMemo(() => createWorkIndex(library), [library]);
+  const [manualDone, setManualDone] = useState("");
+  useEffect(() => setManualDone(""), [search.searched]);
+  const looksLikeIsbn = Boolean(search.searched && (search.searched.field === "isbn" || cleanIsbn(search.searched.q)));
+  const noResults = Boolean(search.searched) && results.length === 0 && !search.busy && !search.error && !manualDone;
   const isAuthorSearch = field === "author" && results.length > 0;
   const ready = dbState === "ready";
 
@@ -99,6 +104,15 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       <button type="button" className="text-button" onClick={() => nav.reset({ name: "settings" })}>Ouvrir les paramètres</button>
     </p>}
     {search.noPreferredResults && <section className="search-fallback"><p>Aucun résultat dans la langue préférée.</p><button type="button" onClick={() => void search.searchAllLanguages()}>Afficher toutes les langues</button></section>}
+
+    {noResults && <section className="no-results">
+      <h2>Aucun résultat</h2>
+      <p>{looksLikeIsbn
+        ? `Aucune fiche pour l'ISBN ${search.searched?.q} dans BnF et Open Library${googleKeyKnown ? "" : " (Google Books n'est interrogé qu'avec une clé, à ajouter dans les paramètres)"}. Les catalogues ne connaissent pas toutes les éditions : ajoute-le à la main, il sera rattaché à l'œuvre si elle est déjà dans ta bibliothèque.`
+        : `Rien pour « ${search.searched?.q} ». Essaie une autre orthographe, une autre source, ou ajoute le livre à la main.`}</p>
+      {!isAuthorSearch && field !== "author" && <ManualAdd isbn={looksLikeIsbn ? search.searched?.q : undefined} initialTitle={looksLikeIsbn ? "" : search.searched?.q} onAdd={async (book, owned) => { await add(book, owned); setManualDone(book.title); }} />}
+    </section>}
+    {manualDone && <p className="cover-status" role="status">« {manualDone} » a été ajouté à ta bibliothèque.</p>}
 
     {isAuthorSearch ? <>
       <section className="author-search-summary">

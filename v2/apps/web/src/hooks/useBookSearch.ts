@@ -23,6 +23,8 @@ export function useBookSearch() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  /** Recherche terminée (même sans résultat) : sert à afficher « aucun résultat » et l'ajout manuel. */
+  const [searched, setSearched] = useState<{ q: string; field: BookSearchField } | null>(null);
 
   // Chaque recherche a un numéro : les réponses tardives d'une recherche abandonnée sont ignorées.
   const currentSearch = useRef(0);
@@ -42,6 +44,7 @@ export function useBookSearch() {
     setBusy(true);
     setError("");
     setNotice("");
+    setSearched(null);
     setResults([]);
     setShowOtherLanguages(showOthers);
     setCanLoadMore(false);
@@ -57,7 +60,8 @@ export function useBookSearch() {
       setResults(found);
       setOffset(PAGE_SIZE);
       setCanLoadMore(field !== "author" && found.length > 0);
-      setNoPreferredResults(!showOthers && language !== "all" && found.length === 0);
+      setNoPreferredResults(!showOthers && language !== "all" && field !== "isbn" && found.length === 0);
+      setSearched({ q: q.trim(), field });
       enrichInBackground(found, language, searchId);
     } catch (x) {
       if (isCurrent()) setError(x instanceof Error ? x.message : "Recherche impossible");
@@ -77,6 +81,7 @@ export function useBookSearch() {
     setShowOtherLanguages(false);
     setError("");
     setNotice("");
+    setSearched(null);
     setBusy(false);
   }, []);
 
@@ -105,7 +110,7 @@ export function useBookSearch() {
   return {
     q, setQ, provider, setProvider, field, setField,
     results, canLoadMore, activeLanguage, showOtherLanguages, setShowOtherLanguages,
-    noPreferredResults, busy, error, notice,
+    noPreferredResults, busy, error, notice, searched,
     submit, searchAllLanguages, loadMore, clear
   };
 }
