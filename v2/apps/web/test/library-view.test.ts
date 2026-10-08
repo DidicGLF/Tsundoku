@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authorInitial, authorStats, booksOfAuthor, filterAuthorBooks, filterLibrary, findNewWorks, groupByAuthor,
-  isInLibrary, libraryFilterCounts, plural, progressPercent, sortLibrary
+  libraryFilterCounts, plural, progressPercent, sortLibrary
 } from "../src/lib/library-view";
 import type { LibraryBook } from "../src/services/library";
 
@@ -98,12 +98,17 @@ describe("author bibliography", () => {
   });
 });
 
-describe("isInLibrary", () => {
-  const library = [book({ source: "bnf", sourceId: "ark1", isbn13: "9780441172719" })];
-  it("matches by ISBN or by source id", () => {
-    expect(isInLibrary({ source: "google-books", sourceId: "g", title: "x", authors: [], isbn13: "9780441172719" }, library)).toBe(true);
-    expect(isInLibrary({ source: "bnf", sourceId: "ark1", title: "x", authors: [] }, library)).toBe(true);
-    expect(isInLibrary({ source: "bnf", sourceId: "ark2", title: "x", authors: [] }, library)).toBe(false);
+describe("libraryStateOf", () => {
+  it("tells absent, tracked and owned results apart", async () => {
+    const { createWorkIndex, libraryStateOf } = await import("../src/lib/library-view");
+    const mkBook = (title: string, owned: boolean, isbn13: string, sourceId: string) =>
+      ({ id: sourceId, source: "bnf", sourceId, title, authors: ["David Eddings"], isbn13, owned }) as never;
+    const index = createWorkIndex([mkBook("La Belgariade", false, "9782266000002", "ark1"), mkBook("Polgara la sorcière", true, "9782266000003", "ark2")]);
+    const result = (title: string, isbn13: string, sourceId: string) => ({ source: "open-library", sourceId, title, authors: ["David Eddings"], isbn13 }) as never;
+    expect(libraryStateOf(result("La Belgariade", "9782266111111", "OL1"), index)).toBe("tracked");
+    expect(libraryStateOf(result("x", "9782266000003", "OL2"), index)).toBe("owned");
+    expect(libraryStateOf(result("Les Dômes de feu", "9782266222222", "OL3"), index)).toBe("none");
+    expect(libraryStateOf({ source: "bnf", sourceId: "ark1", title: "Autre titre", authors: [] } as never, index)).toBe("tracked");
   });
 });
 
@@ -188,8 +193,8 @@ describe("titleInitial", () => {
 
 describe("finding the library work of a search result", () => {
   const local = (title: string, authors: string[], isbn13?: string, extra: object = {}) =>
-    ({ id: title, title, authors, isbn13, owned: false, ...extra }) as never;
-  const result = (title: string, authors: string[], isbn13?: string) => ({ source: "bnf", sourceId: title, title, authors, isbn13 }) as never;
+    ({ id: title, source: "bnf", sourceId: title, title, authors, isbn13, owned: false, ...extra }) as never;
+  const result = (title: string, authors: string[], isbn13?: string) => ({ source: "open-library", sourceId: "ol:" + title, title, authors, isbn13 }) as never;
 
   it("recognises another edition of a work imported from the author's bibliography", async () => {
     const { createWorkIndex, findLocalWork } = await import("../src/lib/library-view");
@@ -214,7 +219,7 @@ describe("finding the library work of a search result", () => {
 
 describe("planDuplicateMerges", () => {
   const lb = (id: string, title: string, authors: string[], isbn13: string, addedAt: string, extra: object = {}) =>
-    ({ id, title, authors, isbn13, addedAt, owned: false, favorite: false, status: "TO_READ", ...extra }) as never;
+    ({ id, source: "bnf", sourceId: id, title, authors, isbn13, addedAt, owned: false, favorite: false, status: "TO_READ", ...extra }) as never;
   it("keeps the oldest entry and carries owned/status/rating over from its duplicates", async () => {
     const { planDuplicateMerges } = await import("../src/lib/library-view");
     const merges = planDuplicateMerges([

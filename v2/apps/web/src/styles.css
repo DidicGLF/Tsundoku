@@ -1805,3 +1805,16 @@ select {
 .filter-row::-webkit-scrollbar {
   display: none;
 }
+
+.card .card-state {
+  margin: 4px 0 8px;
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.card-actions button:disabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

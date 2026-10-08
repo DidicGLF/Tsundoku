@@ -124,12 +124,15 @@ export function attributeOrphans<T extends { authors: string[] }>(books: T[], au
   return books.map(book => book.authors.some(name => name.trim()) ? book : { ...book, authors: [authorName] });
 }
 
-/** True when a search result is already in the library (same ISBN or same source id). */
-export function isInLibrary(result: BookSearchResult, library: LibraryBook[]): boolean {
-  return library.some(book =>
-    (result.isbn13 && book.isbn13 === result.isbn13) ||
-    (result.isbn10 && book.isbn10 === result.isbn10) ||
-    (book.source === result.source && book.sourceId === result.sourceId));
+export type LibraryState = "none" | "tracked" | "owned";
+
+/**
+ * Où en est un résultat de recherche dans la bibliothèque : absent, suivi (présent mais pas
+ * possédé, par exemple venu d'une bibliographie d'auteur) ou possédé.
+ */
+export function libraryStateOf(result: BookSearchResult, index: WorkIndex): LibraryState {
+  const local = findLocalWork(result, index);
+  return !local ? "none" : local.owned ? "owned" : "tracked";
 }
 
 /* ---- Author bibliography ---- */
@@ -208,6 +211,7 @@ export function initialsOf(name: string): string {
 export interface WorkIndex {
   byTitle: Map<string, LibraryBook[]>;
   byIsbn: Map<string, LibraryBook>;
+  bySource: Map<string, LibraryBook>;
 }
 
 const isbnsOf = (book: { isbn10?: string; isbn13?: string }) =>
@@ -215,8 +219,9 @@ const isbnsOf = (book: { isbn10?: string; isbn13?: string }) =>
 
 /** Index des livres de la bibliothèque, pour retrouver l'œuvre d'un résultat sans comparer un par un. */
 export function createWorkIndex(library: LibraryBook[]): WorkIndex {
-  const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map() };
+  const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map(), bySource: new Map() };
   for (const book of library) {
+    index.bySource.set(`${book.source}:${book.sourceId}`, book);
     const key = normalizeText(workTitle(book.title));
     index.byTitle.set(key, [...(index.byTitle.get(key) ?? []), book]);
     for (const isbn of isbnsOf(book)) index.byIsbn.set(isbn, book);
@@ -229,6 +234,8 @@ export function createWorkIndex(library: LibraryBook[]): WorkIndex {
  * et un auteur en commun. C'est ce qui évite qu'une autre édition crée un doublon.
  */
 export function findLocalWork(book: BookSearchResult, index: WorkIndex): LibraryBook | undefined {
+  const sameRecord = index.bySource.get(`${book.source}:${book.sourceId}`);
+  if (sameRecord) return sameRecord;
   for (const isbn of isbnsOf(book)) {
     const found = index.byIsbn.get(isbn);
     if (found) return found;
@@ -251,7 +258,7 @@ const statusRank = (status: LibraryBook["status"]) => (status === "READ" ? 3 : s
  */
 export function planDuplicateMerges(library: LibraryBook[]): DuplicateMerge[] {
   const ordered = [...library].sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime());
-  const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map() };
+  const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map(), bySource: new Map() };
   const groups = new Map<string, LibraryBook[]>();
   for (const book of ordered) {
     const keeper = findLocalWork(book as unknown as BookSearchResult, index);
@@ -259,6 +266,7 @@ export function planDuplicateMerges(library: LibraryBook[]): DuplicateMerge[] {
     groups.set(book.id, [book]);
     const key = normalizeText(workTitle(book.title));
     index.byTitle.set(key, [...(index.byTitle.get(key) ?? []), book]);
+    index.bySource.set(`${book.source}:${book.sourceId}`, book);
     for (const isbn of isbnsOf(book)) index.byIsbn.set(isbn, book);
   }
 

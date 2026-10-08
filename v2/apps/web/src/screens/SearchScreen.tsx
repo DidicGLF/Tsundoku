@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, collapseToWorks, isSameWork, type BookSearchResult } from "@tsundoku/book-sources";
 import { SearchCard } from "../components/BookCards";
 import type { BookSearch } from "../hooks/useBookSearch";
-import { isInLibrary, plural } from "../lib/library-view";
+import { createWorkIndex, libraryStateOf, plural } from "../lib/library-view";
 import { followAuthor } from "../services/authorLibrary";
 import { getBookLanguageGroup, type BookSearchField, type SearchProvider } from "../services/bookSearch";
 import { hasGoogleBooksApiKey } from "../services/credentials";
@@ -26,6 +26,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
     void hasGoogleBooksApiKey().then(setGoogleKeyKnown, () => setGoogleKeyKnown(null));
   }, []);
 
+  const workIndex = useMemo(() => createWorkIndex(library), [library]);
   const isAuthorSearch = field === "author" && results.length > 0;
   const ready = dbState === "ready";
 
@@ -120,7 +121,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       {anyOtherLanguage && <div className="load-more"><button type="button" onClick={() => void search.searchAllLanguages()}>Voir aussi les autres langues</button></div>}
     </> : <>
       <div className="grid">{visible.map(b =>
-        <SearchCard key={`${b.source}-${b.sourceId}`} b={b} added={isInLibrary(b, library)}
+        <SearchCard key={`${b.source}-${b.sourceId}`} b={b} state={libraryStateOf(b, workIndex)}
           onAdd={ready ? book => void add(book, true) : undefined}
           onTrack={ready ? book => void add(book, false) : undefined} />)}
       </div>

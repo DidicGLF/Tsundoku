@@ -2,13 +2,13 @@ import type { BookSearchResult } from "@tsundoku/book-sources";
 import { getBookLanguageLabel } from "../services/bookSearch";
 import type { LibraryBook } from "../services/library";
 import { Cover } from "./Cover";
-import { displayAuthors, readPercent } from "../lib/library-view";
+import { displayAuthors, readPercent, type LibraryState } from "../lib/library-view";
 import { Check, Heart, Star } from "./Icons";
 
 const sourceLabels = { "google-books": "Google Books", bnf: "BnF", "open-library": "Open Library" } as const;
 
-export function SearchCard({ b, onAdd, onTrack, added }: {
-  b: BookSearchResult; onAdd?: (b: BookSearchResult) => void; onTrack?: (b: BookSearchResult) => void; added?: boolean;
+export function SearchCard({ b, onAdd, onTrack, state = "none" }: {
+  b: BookSearchResult; onAdd?: (b: BookSearchResult) => void; onTrack?: (b: BookSearchResult) => void; state?: LibraryState;
 }) {
   return <article className="card">
     <Cover book={b} />
@@ -16,9 +16,12 @@ export function SearchCard({ b, onAdd, onTrack, added }: {
       <small>{sourceLabels[b.source]} · <span className="language-badge">{getBookLanguageLabel(b)}</span></small>
       <h3>{b.title}</h3>
       <p>{displayAuthors(b.authors)}</p>
+      {state === "tracked" && <p className="card-state">Dans ta bibliothèque, pas encore possédé</p>}
       {onAdd && <div className="card-actions">
-        <button disabled={added} onClick={() => onAdd(b)}>{added ? "Ajouté" : "Je le possède"}</button>
-        {onTrack && !added && <button className="secondary-inline" onClick={() => onTrack(b)}>Je ne le possède pas</button>}
+        {state === "owned"
+          ? <button disabled><Check size={16} /> Possédé</button>
+          : <button onClick={() => onAdd(b)}>Je le possède</button>}
+        {onTrack && state === "none" && <button className="secondary-inline" onClick={() => onTrack(b)}>Je ne le possède pas</button>}
       </div>}
     </div>
   </article>;
