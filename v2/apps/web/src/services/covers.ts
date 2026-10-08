@@ -9,8 +9,17 @@ import { rankByLanguage } from "./language";
 
 const googleBooks = new GoogleBooksClient(getCredentialStore());
 
-/** Les recherches par titre sont une requête par livre : on borne leur nombre par passage. */
-const LOOKUP_LIMIT = 30;
+/*
+ * Les recherches par titre coûtent une requête par livre. Mesuré sur de vraies bibliographies
+ * (135 à 276 œuvres) : avec 30 requêtes par passage on couvre ~32 % des livres, avec 400 ~57 %,
+ * en 30 à 60 s d'arrière-plan. 150 est un compromis qui reste poli envers Open Library ; les
+ * échecs sont mémorisés, donc les ouvertures suivantes continuent là où la précédente s'est arrêtée.
+ * Google compte un quota par clé (1000/jour) pour un gain mesuré faible : borne basse.
+ */
+const TITLE_LOOKUP_LIMIT = 150;
+const GOOGLE_LOOKUP_LIMIT = 40;
+/** Les jaquettes trouvées sont publiées par lots, pas à la toute fin. */
+const BATCH_SIZE = 20;
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, work: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
@@ -75,9 +84,8 @@ async function coversFromIsbn(books: BookSearchResult[]): Promise<Map<string, st
  */
 async function coversFromTitle(books: BookSearchResult[]): Promise<Map<string, string>> {
   const found = new Map<string, string>();
-  const candidates = books.filter(book => !book.coverUrl && !recentlyMissed(book)).slice(0, LOOKUP_LIMIT);
 
-  await mapWithConcurrency(candidates, 4, async book => {
+  await mapWithConcurrency(books, 3, async book => {
     const title = cleanCatalogTitle(book.title);
     if (!title) return;
     const params = new URLSearchParams({ title, limit: "5", fields: "title,author_name,cover_i" });
@@ -97,32 +105,32 @@ async function coversFromTitle(books: BookSearchResult[]): Promise<Map<string, s
   return found;
 }
 
-async function googleCover(book: BookSearchResult): Promise<string | undefined> {
+/** `failed` : erreur réseau ou quota, à ne pas confondre avec « Google n'a pas de jaquette ». */
+async function googleCover(book: BookSearchResult): Promise<{ url?: string; failed?: boolean }> {
   try {
     const isbn = canonicalIsbn(book) ?? cleanIsbn(book.isbn10);
     if (isbn) {
       const candidates = await googleBooks.search(isbn, "all", 0, "isbn");
       const exact = candidates.find(candidate => candidate.coverUrl && canonicalIsbn(candidate) === canonicalIsbn(book));
       const url = exact?.coverUrl ?? candidates.find(candidate => candidate.coverUrl)?.coverUrl;
-      if (url) return url;
+      if (url) return { url };
     }
     const query = [book.title, book.authors[0]].filter(Boolean).join(" ");
-    if (!query) return undefined;
+    if (!query) return {};
     const candidates = await googleBooks.search(query, "all", 0, "all");
-    return candidates.find(candidate => candidate.coverUrl && isSameEdition(book, candidate))?.coverUrl;
+    return { url: candidates.find(candidate => candidate.coverUrl && isSameEdition(book, candidate))?.coverUrl };
   } catch {
-    return undefined;
+    return { failed: true };
   }
 }
 
-/** Google Books : utile surtout pour l'édition française, mais sans clé son quota anonyme est épuisé. */
+/** Google Books : sans clé son quota anonyme est épuisé, on n'est appelé que si une clé existe. */
 async function coversFromGoogle(books: BookSearchResult[]): Promise<Map<string, string>> {
   const found = new Map<string, string>();
-  const candidates = books.filter(book => !book.coverUrl && !recentlyMissed(book)).slice(0, LOOKUP_LIMIT);
-  await mapWithConcurrency(candidates, 3, async book => {
-    const url = await googleCover(book);
+  await mapWithConcurrency(books, 3, async book => {
+    const { url, failed } = await googleCover(book);
     if (url) found.set(coverKey(book), https(url));
-    else rememberMiss(book);
+    else if (!failed) rememberMiss(book);
   });
   return found;
 }
@@ -136,7 +144,8 @@ async function hasGoogleKey(): Promise<boolean> {
  * `onProgress` reçoit la liste à jour après chaque étape : les jaquettes apparaissent au
  * fil de l'eau au lieu d'attendre la plus lente.
  *  1. cache local ; 2. Open Library par ISBN (lots) et par titre pour les notices sans ISBN ;
- *  3. Open Library par titre pour le reste ; 4. Google Books, seulement si une clé est configurée.
+ *  3. Open Library par titre pour le reste ; 4. Google Books, seulement si une clé est configurée
+ *     (gain mesuré faible sur les bibliographies : l'essentiel vient d'Open Library).
  */
 export async function enrichSearchResults(
   books: BookSearchResult[],
@@ -157,16 +166,23 @@ export async function enrichSearchResults(
     onProgress?.(publish());
   };
 
-  const [byIsbn, byTitle] = await Promise.all([
-    coversFromIsbn(current),
-    coversFromTitle(current.filter(book => !hasIsbn(book)))
+  /** Recherche par titre, par lots : chaque lot trouvé est publié tout de suite. */
+  const titleStage = async (candidates: BookSearchResult[]) => {
+    const todo = candidates.filter(book => !book.coverUrl && !recentlyMissed(book)).slice(0, TITLE_LOOKUP_LIMIT);
+    for (let start = 0; start < todo.length; start += BATCH_SIZE) apply(await coversFromTitle(todo.slice(start, start + BATCH_SIZE)));
+  };
+
+  // Les lots d'ISBN (une requête pour 50 livres) et les notices sans ISBN avancent en parallèle.
+  await Promise.all([
+    coversFromIsbn(current).then(apply),
+    titleStage(current.filter(book => !hasIsbn(book)))
   ]);
-  apply(byIsbn);
-  apply(byTitle);
+  await titleStage(current.filter(book => !book.coverUrl));
 
-  apply(await coversFromTitle(current.filter(book => !book.coverUrl)));
-
-  if (await hasGoogleKey()) apply(await coversFromGoogle(current.filter(book => !book.coverUrl)));
+  if (await hasGoogleKey()) {
+    const todo = current.filter(book => !book.coverUrl && !recentlyMissed(book)).slice(0, GOOGLE_LOOKUP_LIMIT);
+    apply(await coversFromGoogle(todo));
+  }
 
   return publish();
 }

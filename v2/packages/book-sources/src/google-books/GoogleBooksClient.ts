@@ -14,7 +14,7 @@ export class GoogleBooksClient implements BookSource {
     const qualified = `${googlePrefix[field]}${query}`;
     const values:Record<string,string>={q:qualified,maxResults:"40",startIndex:String(Math.max(0,offset)),printType:"books"};
     const p=await this.params(values);
-    const data=await getJson<Response>(`${this.base}/volumes?${p}`);
+    const data=await getJson<Response>(`${this.base}/volumes?${p}`,{retries:2});
     return (data.items??[]).map(mapGoogleBook);
   }
   async getBook(id:string):Promise<BookMetadata> {
