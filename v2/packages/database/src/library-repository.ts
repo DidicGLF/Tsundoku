@@ -81,6 +81,14 @@ export class SqliteLibraryRepository {
    * is kept as is, except that an explicit `owned: true` marks it as owned; a
    * soft-deleted one is restored with a fresh reading state.
    */
+  /**
+   * Runs several repository calls in one transaction: a single commit (and, on the web,
+   * a single write of the database) instead of one per book.
+   */
+  batch<T>(work: () => Promise<T>): Promise<T> {
+    return this.db.transaction(work);
+  }
+
   async add(input: NewLibraryBook): Promise<void> {
     await this.db.transaction(async () => {
       const owned = (input.owned ?? true) ? 1 : 0;

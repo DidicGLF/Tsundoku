@@ -70,7 +70,7 @@ export async function addBookToLibrary(book: BookSearchResult, owned = true): Pr
 
 export async function addBooksToLibrary(books: BookSearchResult[], owned = false, newlyDiscovered = false): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  for (const book of books) await repo.add(toNewBook(book, { owned, newlyDiscovered }));
+  await repo.batch(async () => { for (const book of books) await repo.add(toNewBook(book, { owned, newlyDiscovered })); });
   return repo.list();
 }
 
@@ -78,7 +78,7 @@ export async function refreshLibraryMetadata(
   matches: Array<{ id: string; book: BookSearchResult }>
 ): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  for (const { id, book } of matches) await repo.refreshMetadata(id, toNewBook(book));
+  await repo.batch(async () => { for (const { id, book } of matches) await repo.refreshMetadata(id, toNewBook(book)); });
   return repo.list();
 }
 
@@ -90,7 +90,7 @@ export async function removeBookFromLibrary(id: string): Promise<StoredLibraryBo
 
 export async function removeBooksFromLibrary(ids: string[]): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  for (const id of ids) await repo.remove(id);
+  await repo.batch(async () => { for (const id of ids) await repo.remove(id); });
   return repo.list();
 }
 

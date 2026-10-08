@@ -85,6 +85,17 @@ describe("add / list", () => {
     await repo.add({ ...dune, source: "google-books", sourceId: "g1" });
     expect(await repo.list()).toHaveLength(1);
   });
+  it("adds many books in one batch and rolls the whole batch back on failure", async () => {
+    const many = Array.from({ length: 50 }, (_, i) => ({ ...dune, sourceId: `OL${i}`, isbn13: `97800000${String(i).padStart(5, "0")}`, title: `Livre ${i}`, seriesName: undefined }));
+    await repo.batch(async () => { for (const book of many) await repo.add(book); });
+    expect(await repo.list()).toHaveLength(50);
+
+    await expect(repo.batch(async () => {
+      await repo.add({ ...dune, sourceId: "extra", isbn13: "9781111111111" });
+      throw new Error("boom");
+    })).rejects.toThrow("boom");
+    expect(await repo.list()).toHaveLength(50);
+  });
   it("marks a tracked book as owned when added again as owned, but not when re-imported", async () => {
     await repo.add({ ...dune, owned: false, newlyDiscovered: true });
     await repo.add({ ...dune, owned: false, newlyDiscovered: true });
