@@ -1,3 +1,4 @@
+import { Cover } from "../components/Cover";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   authorStats, booksOfAuthor, filterAuthorBooks, formatRefreshDate, plural,
@@ -133,7 +134,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
     <div className="author-book-list author-book-list-flat">
       {visible.map(book => <article className={`author-book-row ${book.owned ? "owned" : "missing"}`} key={book.id}>
         <button type="button" className="book-row-main" onClick={() => nav.push({ name: "detail", id: book.id })}>
-          {book.coverUrl ? <img src={book.coverUrl} alt="" /> : <div className="mini-cover">📖</div>}
+          <Cover book={book} variant="mini" />
           <span><small>{book.publishedYear ?? "Date inconnue"} {book.newlyDiscovered && <b className="new-book-badge">Nouveau</b>}</small><strong>{book.title}</strong><em>{book.publisher ?? ""}</em></span>
         </button>
         <div className="quick-book-actions">

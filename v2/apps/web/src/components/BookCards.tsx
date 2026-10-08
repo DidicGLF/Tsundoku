@@ -1,6 +1,7 @@
 import type { BookSearchResult } from "@tsundoku/book-sources";
 import { getBookLanguageLabel } from "../services/bookSearch";
 import type { LibraryBook } from "../services/library";
+import { Cover } from "./Cover";
 import { displayAuthors, statusLabels } from "../lib/library-view";
 
 const sourceLabels = { "google-books": "Google Books", bnf: "BnF", "open-library": "Open Library" } as const;
@@ -9,7 +10,7 @@ export function SearchCard({ b, onAdd, onTrack, added }: {
   b: BookSearchResult; onAdd?: (b: BookSearchResult) => void; onTrack?: (b: BookSearchResult) => void; added?: boolean;
 }) {
   return <article className="card">
-    {b.coverUrl ? <img src={b.coverUrl} alt="" /> : <div className="cover">📖</div>}
+    <Cover book={b} />
     <div>
       <small>{sourceLabels[b.source]} · <span className="language-badge">{getBookLanguageLabel(b)}</span></small>
       <h3>{b.title}</h3>
@@ -28,7 +29,7 @@ export function LibraryCard({ b, onOpen }: { b: LibraryBook; onOpen: (b: Library
     : undefined;
 
   return <article className="card library-card" onClick={() => onOpen(b)}>
-    {b.coverUrl ? <img src={b.coverUrl} alt="" /> : <div className="cover">📖</div>}
+    <Cover book={b} />
     <div>
       <small>{b.owned ? "✓ Possédé" : "○ Non possédé"} · {statusLabels[b.status]} {b.favorite ? "★" : ""}</small>
       <h3>{b.title}</h3>

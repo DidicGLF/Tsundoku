@@ -1,3 +1,4 @@
+import { Cover } from "../components/Cover";
 import { useEffect, useState, type FormEvent } from "react";
 import type { ReadingStatus } from "@tsundoku/database";
 import { displayAuthors, formatDateTime, localDateTimeValue, statusLabels } from "../lib/library-view";
@@ -78,7 +79,7 @@ export function BookDetailScreen({ book }: { book: LibraryBook }) {
     <button className="secondary" onClick={nav.back}>← Retour</button>
     {error && <p className="error">{error}</p>}
     <div className="detail-layout">
-      <div>{book.coverUrl ? <img className="detail-cover" src={book.coverUrl} alt="" /> : <div className="detail-cover cover">📖</div>}</div>
+      <div><Cover book={book} variant="detail" /></div>
       <div>
         <p className="eyebrow">{displayAuthors(book.authors)}</p><h2>{book.title}</h2>
         <p>{book.description || "Aucune description disponible."}</p>
