@@ -53,6 +53,17 @@ export interface NewLibraryBook {
   newlyDiscovered?: boolean;
 }
 
+/** The edition a user actually owns. Provided values replace the stored ones; `coverUrl: null` clears the cover. */
+export interface EditionUpdate {
+  isbn10?: string;
+  isbn13?: string;
+  publisher?: string;
+  publishedYear?: number;
+  pageCount?: number;
+  language?: string;
+  coverUrl?: string | null;
+}
+
 export interface LibraryBookUpdate {
   status?: ReadingStatus;
   favorite?: boolean;

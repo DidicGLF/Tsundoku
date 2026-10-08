@@ -1,6 +1,6 @@
 import type { SqliteAdapter } from "./adapter";
 import type {
-  BookSourceName, FollowedAuthor, LibraryBookUpdate, NewLibraryBook, ReadingStatus, StoredLibraryBook
+  BookSourceName, EditionUpdate, FollowedAuthor, LibraryBookUpdate, NewLibraryBook, ReadingStatus, StoredLibraryBook
 } from "./types";
 
 type Row = Record<string, unknown>;
@@ -349,6 +349,36 @@ export class SqliteLibraryRepository {
         await this.applySeries(String(row.book_id), changes.seriesName, changes.seriesVolume, true);
       }
     });
+  }
+
+  /**
+   * Makes the entry describe the edition the user owns: ISBN, publisher, year, pages, language and
+   * cover are replaced by the given values (missing ones are left alone, `coverUrl: null` clears the cover).
+   */
+  async setEdition(id: string, edition: EditionUpdate): Promise<void> {
+    const row = (await this.db.query<{ edition_id: string | null }>(
+      "SELECT edition_id FROM user_books WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1", [id, this.userId]
+    ))[0];
+    if (!row?.edition_id) return;
+    const now = new Date().toISOString();
+    const cover = edition.coverUrl === undefined ? undefined : edition.coverUrl;
+    await this.db.execute(
+      `UPDATE editions SET
+         isbn10 = COALESCE(?, isbn10), isbn13 = COALESCE(?, isbn13), publisher = COALESCE(?, publisher),
+         published_year = COALESCE(?, published_year), page_count = COALESCE(?, page_count),
+         language = COALESCE(?, language), cover_url = ${cover === undefined ? "cover_url" : "?"}, updated_at = ?
+       WHERE id = ?`,
+      [
+        edition.isbn10 ?? null, edition.isbn13 ?? null, edition.publisher ?? null,
+        edition.publishedYear ?? null, edition.pageCount ?? null, edition.language ?? null,
+        ...(cover === undefined ? [] : [cover]), now, row.edition_id
+      ]
+    );
+    // The list shows the edition cover first, then the work's: keep both in step.
+    if (cover !== undefined) {
+      await this.db.execute("UPDATE books SET cover_url = ?, updated_at = ? WHERE id = (SELECT book_id FROM user_books WHERE id = ?)", [cover, now, id]);
+    }
+    await this.db.execute("UPDATE user_books SET updated_at = ? WHERE id = ?", [now, id]);
   }
 
   /** Fills in metadata that is still missing; never overwrites existing values. */

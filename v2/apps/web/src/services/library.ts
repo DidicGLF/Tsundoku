@@ -7,7 +7,7 @@ import {
   type StoredLibraryBook,
   type LibraryBookUpdate,
 } from "@tsundoku/database";
-import { completeAuthorNames, createWorkIndex, findLocalWork, planDuplicateMerges } from "../lib/library-view";
+import { completeAuthorNames, createWorkIndex, editionOf, findLocalWork, planDuplicateMerges } from "../lib/library-view";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
 let repositoryPromise: Promise<SqliteLibraryRepository> | null = null;
@@ -66,6 +66,7 @@ export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
     await repo.batch(async () => {
       for (const merge of merges) {
         if (Object.keys(merge.changes).length) await repo.update(merge.keepId, merge.changes);
+        if (merge.edition) await repo.setEdition(merge.keepId, merge.edition);
         for (const id of merge.removeIds) await repo.remove(id);
       }
     });
@@ -86,11 +87,26 @@ export async function addBookToLibrary(book: BookSearchResult, owned = true): Pr
   const library = await repo.list();
   const local = findLocalWork(book, createWorkIndex(library));
   if (local) {
-    if (owned && !local.owned) await repo.update(local.id, { owned: true, newlyDiscovered: false });
+    if (owned && !local.owned) {
+      await repo.update(local.id, { owned: true, newlyDiscovered: false });
+      // Ce qu'on possède, c'est cette édition-là : son ISBN et sa jaquette remplacent ceux de la fiche.
+      await repo.setEdition(local.id, editionOf(book));
+    }
     await repo.refreshMetadata(local.id, toNewBook(book));
   } else {
     // Un nom d'auteur incomplet (« Eddings ») rejoint celui de la bibliothèque (« David Eddings »).
     await repo.add(toNewBook({ ...book, authors: completeAuthorNames(book.authors, library) }, { owned }));
+  }
+  return repo.list();
+}
+
+/** « C'est mon édition » : la fiche de cette œuvre prend l'ISBN, l'éditeur et la jaquette de ce résultat. */
+export async function adoptEdition(book: BookSearchResult): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  const local = findLocalWork(book, createWorkIndex(await repo.list()));
+  if (local) {
+    if (!local.owned) await repo.update(local.id, { owned: true, newlyDiscovered: false });
+    await repo.setEdition(local.id, editionOf(book));
   }
   return repo.list();
 }

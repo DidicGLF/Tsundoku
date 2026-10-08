@@ -2,7 +2,7 @@ import {
   canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, canonicalIsbn, cleanIsbn, isSameAuthorName, isSameWork, normalizeText, shareAuthor, workTitle,
   type BookSearchResult
 } from "@tsundoku/book-sources";
-import type { ReadingStatus } from "@tsundoku/database";
+import type { EditionUpdate, ReadingStatus } from "@tsundoku/database";
 import type { LibraryBook } from "../services/library";
 
 export const statusLabels: Record<ReadingStatus, string> = {
@@ -124,7 +124,7 @@ export function attributeOrphans<T extends { authors: string[] }>(books: T[], au
   return books.map(book => book.authors.some(name => name.trim()) ? book : { ...book, authors: [authorName] });
 }
 
-export type LibraryState = "none" | "tracked" | "owned";
+export type LibraryState = "none" | "tracked" | "owned" | "owned-other-edition";
 
 /**
  * Où en est un résultat de recherche dans la bibliothèque : absent, suivi (présent mais pas
@@ -132,7 +132,12 @@ export type LibraryState = "none" | "tracked" | "owned";
  */
 export function libraryStateOf(result: BookSearchResult, index: WorkIndex): LibraryState {
   const local = findLocalWork(result, index);
-  return !local ? "none" : local.owned ? "owned" : "tracked";
+  if (!local) return "none";
+  if (!local.owned) return "tracked";
+  // Possédé, mais la fiche décrit une autre édition que celle de ce résultat.
+  const wanted = isbnsOf(result);
+  const known = new Set(isbnsOf(local));
+  return wanted.length && !wanted.some(isbn => known.has(isbn)) ? "owned-other-edition" : "owned";
 }
 
 /* ---- Author bibliography ---- */
@@ -208,6 +213,20 @@ export function initialsOf(name: string): string {
   return letters.join("").toLocaleUpperCase("fr");
 }
 
+/** L'édition d'un livre (résultat de recherche ou fiche) sous la forme attendue pour remplacer celle d'une fiche. */
+export function editionOf(book: { isbn10?: string; isbn13?: string; publisher?: string; publishedYear?: number; pageCount?: number; language?: string; coverUrl?: string }): EditionUpdate {
+  return {
+    isbn13: canonicalIsbn(book) ?? cleanIsbn(book.isbn13),
+    isbn10: cleanIsbn(book.isbn10),
+    publisher: book.publisher,
+    publishedYear: book.publishedYear,
+    pageCount: book.pageCount,
+    language: book.language,
+    // Sans jaquette connue, on efface celle d'une autre édition : la recherche retrouvera celle de ce livre.
+    coverUrl: book.coverUrl ?? null
+  };
+}
+
 export interface WorkIndex {
   byTitle: Map<string, LibraryBook[]>;
   byIsbn: Map<string, LibraryBook>;
@@ -278,6 +297,8 @@ export interface DuplicateMerge {
   removeIds: string[];
   /** Ce que la fiche conservée récupère des doublons (possédé, favori, statut, note). */
   changes: { owned?: boolean; favorite?: boolean; status?: LibraryBook["status"]; rating?: number };
+  /** L'édition possédée (ISBN, jaquette…) quand un doublon possédé prend la place d'une fiche non possédée. */
+  edition?: EditionUpdate;
 }
 
 const statusRank = (status: LibraryBook["status"]) => (status === "READ" ? 3 : status === "READING" ? 2 : 1);
@@ -311,7 +332,11 @@ export function planDuplicateMerges(library: LibraryBook[]): DuplicateMerge[] {
     if (statusRank(best.status) > statusRank(keeper.status)) changes.status = best.status;
     const rating = group.find(book => book.rating != null)?.rating;
     if (keeper.rating == null && rating != null) changes.rating = rating;
-    merges.push({ keepId, removeIds: group.slice(1).map(book => book.id), changes });
+    const ownedDuplicate = !keeper.owned ? group.slice(1).find(book => book.owned) : undefined;
+    merges.push({
+      keepId, removeIds: group.slice(1).map(book => book.id), changes,
+      ...(ownedDuplicate ? { edition: editionOf(ownedDuplicate) } : {})
+    });
   }
   return merges;
 }

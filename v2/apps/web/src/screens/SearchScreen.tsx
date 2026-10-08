@@ -7,7 +7,7 @@ import { createWorkIndex, libraryStateOf, plural } from "../lib/library-view";
 import { followAuthor } from "../services/authorLibrary";
 import { getBookLanguageGroup, type BookSearchField, type SearchProvider } from "../services/bookSearch";
 import { hasGoogleBooksApiKey } from "../services/credentials";
-import { addBookToLibrary } from "../services/library";
+import { addBookToLibrary, adoptEdition } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
 import { usePreferences } from "../state/PreferencesProvider";
@@ -59,6 +59,12 @@ export function SearchScreen({ search }: { search: BookSearch }) {
     setActionError("");
     try { setLibrary(await addBookToLibrary(book, owned)); }
     catch (x) { setActionError(x instanceof Error ? x.message : "Impossible d'ajouter le livre."); }
+  }
+
+  async function adopt(book: BookSearchResult) {
+    setActionError("");
+    try { setLibrary(await adoptEdition(book)); }
+    catch (x) { setActionError(x instanceof Error ? x.message : "Impossible de changer l'édition."); }
   }
 
   async function openAuthor(group: AuthorSearchGroup) {
@@ -137,6 +143,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       <div className="grid">{visible.map(b =>
         <SearchCard key={`${b.source}-${b.sourceId}`} b={b} state={libraryStateOf(b, workIndex)}
           onAdd={ready ? book => void add(book, true) : undefined}
+          onAdopt={ready ? book => void adopt(book) : undefined}
           onTrack={ready ? book => void add(book, false) : undefined} />)}
       </div>
       {hiddenCount > 0 && <div className="load-more"><button type="button" onClick={() => search.setShowOtherLanguages(true)}>Afficher les autres langues / indéterminées ({hiddenCount})</button></div>}

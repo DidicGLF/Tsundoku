@@ -215,6 +215,19 @@ describe("refreshMetadata", () => {
   });
 });
 
+describe("setEdition", () => {
+  it("replaces ISBN, publisher and cover with the owned edition, clears a cover on request, keeps what is not given", async () => {
+    await repo.add({ ...dune, coverUrl: "old.jpg", publisher: "Ace", pageCount: 600 });
+    const [{ id }] = await repo.list();
+    await repo.setEdition(id, { isbn13: "9782266110075", isbn10: "2266110071", publisher: "Pocket", coverUrl: "mine.jpg" });
+    expect((await repo.list())[0]).toMatchObject({ isbn13: "9782266110075", isbn10: "2266110071", publisher: "Pocket", coverUrl: "mine.jpg", pageCount: 600 });
+    await repo.setEdition(id, { coverUrl: null });
+    expect((await repo.list())[0].coverUrl).toBeUndefined();
+    await repo.setEdition(id, { publisher: "Poche" });
+    expect((await repo.list())[0]).toMatchObject({ publisher: "Poche", isbn13: "9782266110075" });
+  });
+});
+
 describe("rating", () => {
   it("stores 1-5 stars, keeps them across other updates and clears them with null", async () => {
     await repo.add(dune);

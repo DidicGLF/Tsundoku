@@ -228,7 +228,7 @@ describe("planDuplicateMerges", () => {
       lb("c", "Polgara la sorcière", ["David Eddings", "Leigh Eddings"], "9782266000003", "2026-10-02T10:00:00Z"),
       lb("d", "La Belgariade", ["David Eddings"], "9782266000002", "2026-10-03T10:00:00Z")
     ]);
-    expect(merges).toEqual([{ keepId: "a", removeIds: ["b"], changes: { owned: true, favorite: true, status: "READ", rating: 4 } }]);
+    expect(merges).toMatchObject([{ keepId: "a", removeIds: ["b"], changes: { owned: true, favorite: true, status: "READ", rating: 4 } }]);
   });
   it("does nothing when there are no duplicates", async () => {
     const { planDuplicateMerges } = await import("../src/lib/library-view");
@@ -309,6 +309,38 @@ describe("completeAuthorNames", () => {
     const result = { source: "manual", sourceId: "m", title: "Le chevalier de rubis", authors: ["Eddings"], isbn13: "9782266142021" } as never;
     expect(findLocalWork(result, createWorkIndex([bibliography]))).toBe(bibliography);
     const split = book("b", "Le chevalier de rubis", ["Eddings"], "9782266142021", "2026-10-05T10:00:00Z", { owned: true });
-    expect(planDuplicateMerges([bibliography, split])).toEqual([{ keepId: "a", removeIds: ["b"], changes: { owned: true } }]);
+    expect(planDuplicateMerges([bibliography, split])).toMatchObject([{ keepId: "a", removeIds: ["b"], changes: { owned: true }, edition: { isbn13: "9782266142021" } }]);
+  });
+});
+
+describe("owned edition", () => {
+  const lb = (id: string, title: string, authors: string[], isbn13: string, addedAt: string, extra: object = {}) =>
+    ({ id, source: "bnf", sourceId: id, title, authors, isbn13, addedAt, owned: false, favorite: false, status: "TO_READ", ...extra }) as never;
+  it("a merge carries the owned edition (ISBN, cover, publisher) over to the kept entry", async () => {
+    const { planDuplicateMerges } = await import("../src/lib/library-view");
+    const merges = planDuplicateMerges([
+      lb("a", "Le trône de diamant / David Eddings ; [trad.]", ["David Eddings"], "9782298006094", "2026-10-01T10:00:00Z", { coverUrl: "autre-edition.jpg" }),
+      lb("b", "Le trone de diamant la trilogie des joyaux I", ["Eddings"], "9782266110075", "2026-10-05T10:00:00Z", { owned: true, coverUrl: "ma-couverture.jpg", publisher: "Pocket", isbn10: "2266110071" })
+    ]);
+    expect(merges[0].edition).toMatchObject({ isbn13: "9782266110075", isbn10: "2266110071", publisher: "Pocket", coverUrl: "ma-couverture.jpg" });
+    // un doublon sans jaquette efface celle d'une autre édition
+    const noCover = planDuplicateMerges([
+      lb("a", "Le trône de diamant", ["David Eddings"], "9782298006094", "2026-10-01T10:00:00Z", { coverUrl: "autre.jpg" }),
+      lb("b", "Le trone de diamant la trilogie des joyaux I", ["Eddings"], "9782266110075", "2026-10-05T10:00:00Z", { owned: true })
+    ]);
+    expect(noCover[0].edition?.coverUrl).toBeNull();
+    // une fiche déjà possédée garde son édition
+    const keeperOwned = planDuplicateMerges([
+      lb("a", "Dune", ["Frank Herbert"], "1", "2026-10-01T10:00:00Z", { owned: true }),
+      lb("b", "Dune", ["Frank Herbert"], "2", "2026-10-05T10:00:00Z", { owned: true })
+    ]);
+    expect(keeperOwned[0].edition).toBeUndefined();
+  });
+  it("tells an owned book with another edition apart", async () => {
+    const { createWorkIndex, libraryStateOf } = await import("../src/lib/library-view");
+    const index = createWorkIndex([lb("a", "Le trône de diamant", ["David Eddings"], "9782298006094", "2026-10-01T10:00:00Z", { owned: true })]);
+    const result = (isbn13: string) => ({ source: "open-library", sourceId: "ol:" + isbn13, title: "Le trone de diamant la trilogie des joyaux I", authors: ["Eddings"], isbn13 }) as never;
+    expect(libraryStateOf(result("9782266110075"), index)).toBe("owned-other-edition");
+    expect(libraryStateOf(result("9782298006094"), index)).toBe("owned");
   });
 });

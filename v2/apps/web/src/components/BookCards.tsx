@@ -7,8 +7,8 @@ import { Check, Heart, Star } from "./Icons";
 
 const sourceLabels = { "google-books": "Google Books", bnf: "BnF", "open-library": "Open Library", manual: "Saisie manuelle" } as const;
 
-export function SearchCard({ b, onAdd, onTrack, state = "none" }: {
-  b: BookSearchResult; onAdd?: (b: BookSearchResult) => void; onTrack?: (b: BookSearchResult) => void; state?: LibraryState;
+export function SearchCard({ b, onAdd, onTrack, onAdopt, state = "none" }: {
+  b: BookSearchResult; onAdd?: (b: BookSearchResult) => void; onTrack?: (b: BookSearchResult) => void; onAdopt?: (b: BookSearchResult) => void; state?: LibraryState;
 }) {
   return <article className="card">
     <Cover book={b} />
@@ -17,10 +17,13 @@ export function SearchCard({ b, onAdd, onTrack, state = "none" }: {
       <h3>{b.title}</h3>
       <p>{displayAuthors(b.authors)}</p>
       {state === "tracked" && <p className="card-state">Dans ta bibliothèque, pas encore possédé</p>}
+      {state === "owned-other-edition" && <p className="card-state">Possédé, avec une autre édition enregistrée (ISBN ou jaquette différents)</p>}
       {onAdd && <div className="card-actions">
         {state === "owned"
           ? <button disabled><Check size={16} /> Possédé</button>
-          : <button onClick={() => onAdd(b)}>Je le possède</button>}
+          : state === "owned-other-edition"
+            ? <button onClick={() => (onAdopt ?? onAdd)(b)}>C'est mon édition</button>
+            : <button onClick={() => onAdd(b)}>Je le possède</button>}
         {onTrack && state === "none" && <button className="secondary-inline" onClick={() => onTrack(b)}>Je ne le possède pas</button>}
       </div>}
     </div>
