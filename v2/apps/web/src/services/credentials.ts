@@ -9,14 +9,31 @@ import {
 import { clearGoogleQuotaFlag } from "./googleQuota";
 
 const GOOGLE_BOOKS_KEY = "googleBooksApiKey";
+const PREFIX = "tsundoku.";
+const LEGACY_PREFIX = "tsundoku.v2.";
 
 class AndroidCredentialStore implements CredentialStore {
-  private initialized = false;
+  private initialization: Promise<void> | null = null;
 
-  private async ready() {
-    if (this.initialized) return;
-    await SecureStorage.setKeyPrefix("tsundoku.v2.");
-    this.initialized = true;
+  /** Une seule initialisation, même si plusieurs appels arrivent en même temps (le préfixe est global). */
+  private ready(): Promise<void> {
+    this.initialization ??= this.initialize();
+    return this.initialization;
+  }
+
+  private async initialize() {
+    // Ancien préfixe : la clé déjà enregistrée est reprise une fois sous le nouveau.
+    await SecureStorage.setKeyPrefix(LEGACY_PREFIX);
+    const legacy = await SecureStorage.getItem(GOOGLE_BOOKS_KEY).catch(() => null);
+    await SecureStorage.setKeyPrefix(PREFIX);
+    if (typeof legacy === "string" && legacy && !(await SecureStorage.getItem(GOOGLE_BOOKS_KEY))) {
+      await SecureStorage.setItem(GOOGLE_BOOKS_KEY, legacy);
+    }
+    if (legacy) {
+      await SecureStorage.setKeyPrefix(LEGACY_PREFIX);
+      await SecureStorage.removeItem(GOOGLE_BOOKS_KEY).catch(() => undefined);
+      await SecureStorage.setKeyPrefix(PREFIX);
+    }
   }
 
   async getGoogleBooksApiKey(): Promise<string | null> {

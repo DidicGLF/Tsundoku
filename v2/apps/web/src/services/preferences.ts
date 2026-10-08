@@ -1,11 +1,13 @@
 import type { BookSearchLanguage } from "./bookSearch";
 
-const LANGUAGE_KEY = "tsundoku.v2.preferredBookLanguage";
+const LANGUAGE_KEY = "tsundoku.preferredBookLanguage";
+/** Ancienne clé, reprise une fois. */
+const LEGACY_LANGUAGE_KEY = "tsundoku.v2.preferredBookLanguage";
 const supported: BookSearchLanguage[] = ["all", "fr", "en", "de", "es", "it"];
 
 export function getPreferredBookLanguage(): BookSearchLanguage {
   if (typeof window === "undefined") return "fr";
-  const value = window.localStorage.getItem(LANGUAGE_KEY) as BookSearchLanguage | null;
+  const value = (window.localStorage.getItem(LANGUAGE_KEY) ?? window.localStorage.getItem(LEGACY_LANGUAGE_KEY)) as BookSearchLanguage | null;
   return value && supported.includes(value) ? value : "fr";
 }
 

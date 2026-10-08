@@ -38,7 +38,7 @@ pkgs.mkShell {
     export PATH="$ANDROID_HOME/platform-tools:$PATH"
 
     echo ""
-    echo "Tsundoku V2 — environnement de développement"
+    echo "Tsundoku — environnement de développement"
     echo "Node    : $(node --version)"
     echo "pnpm    : $(pnpm --version)"
     echo "Java    : $(java -version 2>&1 | head -n 1)"

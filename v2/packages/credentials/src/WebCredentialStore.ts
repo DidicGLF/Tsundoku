@@ -1,9 +1,20 @@
 import type { CredentialStore } from "./CredentialStore";
 
 export class WebCredentialStore implements CredentialStore {
-  constructor(private readonly storageKey = "tsundoku.v2.googleBooksApiKey") {}
+  /** Ancienne clé de stockage, lue une fois puis abandonnée. */
+  private static readonly LEGACY_KEY = "tsundoku.v2.googleBooksApiKey";
+
+  constructor(private readonly storageKey = "tsundoku.googleBooksApiKey") {}
   async getGoogleBooksApiKey() {
-    return typeof window === "undefined" ? null : window.localStorage.getItem(this.storageKey);
+    if (typeof window === "undefined") return null;
+    const current = window.localStorage.getItem(this.storageKey);
+    if (current) return current;
+    const legacy = window.localStorage.getItem(WebCredentialStore.LEGACY_KEY);
+    if (legacy) {
+      window.localStorage.setItem(this.storageKey, legacy);
+      window.localStorage.removeItem(WebCredentialStore.LEGACY_KEY);
+    }
+    return legacy;
   }
   async setGoogleBooksApiKey(key: string) {
     if (typeof window === "undefined") throw new Error("Browser storage is not available.");

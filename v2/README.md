@@ -1,4 +1,4 @@
-# Tsundoku V2
+# Tsundoku
 
 Suivi de bibliothèque et de lectures : on suit des auteurs, on voit ce qu'on possède et ce qui manque.
 Web (React + Vite) et Android (Capacitor, SQLite natif). Indépendant de la V1.

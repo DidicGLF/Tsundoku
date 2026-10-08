@@ -2,7 +2,7 @@ import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
 import wasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import type { SqliteAdapter, SqliteResult, SqliteRow } from "@tsundoku/database";
 
-const IDB_NAME = "tsundoku-v2";
+const IDB_NAME = "tsundoku";
 const IDB_VERSION = 2;
 const STORE_NAME = "files";
 const DB_KEY = "library.sqlite";
