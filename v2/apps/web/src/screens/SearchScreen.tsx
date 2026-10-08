@@ -31,7 +31,10 @@ export function SearchScreen({ search }: { search: BookSearch }) {
 
   const authorGroups = useMemo<AuthorSearchGroup[]>(() => {
     if (field !== "author") return [];
-    const inLanguage = activeLanguage === "all" ? results : results.filter(book => getBookLanguageGroup(book, activeLanguage) === "preferred");
+    // Seules les notices dans une autre langue connue sont écartées : celles dont la langue est
+    // inconnue (Open Library, souvent) restent. Si le filtre ne laisse rien, mieux vaut tout montrer que rien.
+    const sameOrUnknown = results.filter(book => getBookLanguageGroup(book, activeLanguage) !== "other");
+    const inLanguage = activeLanguage === "all" || !sameOrUnknown.length ? results : sameOrUnknown;
     const groups = new Map<string, AuthorSearchGroup>();
     for (const book of collapseToWorks(inLanguage)) {
       const raw = book.authors[0] ?? search.q.trim();
@@ -89,6 +92,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       <button disabled={search.busy}>{search.busy ? "Recherche…" : "Rechercher"}</button>
     </form>
     {error && <p className="error">{error}</p>}
+    {search.notice && !error && <p className="cover-status" role="status">{search.notice}</p>}
     {suggestGoogleKey && <p className="settings-help">
       {missingCovers} résultats sans jaquette. Une clé Google Books gratuite en retrouve beaucoup plus, surtout en français.{" "}
       <button type="button" className="text-button" onClick={() => nav.reset({ name: "settings" })}>Ouvrir les paramètres</button>

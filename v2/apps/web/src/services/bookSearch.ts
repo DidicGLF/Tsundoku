@@ -14,6 +14,10 @@ export { getBookLanguageGroup, getBookLanguageLabel, type BookLanguageGroup } fr
 
 /** Appelée à chaque fois qu'une source répond, avec tout ce qui est connu jusque-là. */
 export type SearchProgress = (books: BookSearchResult[]) => void;
+/** Prévient l'utilisateur qu'une source est injoignable (résultats possiblement incomplets). */
+export type SearchNotice = (message: string) => void;
+
+const sourceLabel = (source: Source) => source.id === "bnf" ? "BnF" : source.id === "google-books" ? "Google Books" : "Open Library";
 
 type Source = BnfClient | OpenLibraryClient | GoogleBooksClient;
 
@@ -33,39 +37,45 @@ const prepare = (books: BookSearchResult[], language: BookSearchLanguage) =>
  * on n'attend plus la plus lente (BnF : 0,3 à 6 s) pour afficher Open Library.
  * Échoue seulement si toutes les sources échouent.
  */
-async function gather(requests: Array<Promise<BookSearchResult[]>>, language: BookSearchLanguage, onProgress?: SearchProgress): Promise<BookSearchResult[]> {
+async function gather(
+  requests: Array<{ source: Source; promise: Promise<BookSearchResult[]> }>,
+  language: BookSearchLanguage, onProgress?: SearchProgress, onNotice?: SearchNotice
+): Promise<BookSearchResult[]> {
   let merged: BookSearchResult[] = [];
+  const failed: Source[] = [];
   const errors: unknown[] = [];
-  await Promise.all(requests.map(request => request.then(
+  await Promise.all(requests.map(({ source, promise }) => promise.then(
     found => {
       merged = mergeSearchResults([...merged, ...found]);
       onProgress?.(prepare(merged, language));
     },
-    error => { errors.push(error); }
+    error => { errors.push(error); failed.push(source); }
   )));
   if (errors.length === requests.length) {
     throw requests.length === 1 ? errors[0] : new Error("Aucune source de livres n'est disponible.");
   }
+  if (failed.length) onNotice?.(`${failed.map(sourceLabel).join(", ")} injoignable : résultats incomplets.`);
   return prepare(merged, language);
 }
 
 export async function searchBooks(
   q: string, p: SearchProvider, language: BookSearchLanguage = "all", offset = 0, field: BookSearchField = "all",
-  onProgress?: SearchProgress
+  onProgress?: SearchProgress,
+  onNotice?: SearchNotice
 ): Promise<BookSearchResult[]> {
   q = q.trim();
   if (!q) return [];
-  const search = (source: Source) => source.search(q, language, offset, field);
+  const search = (source: Source) => ({ source, promise: source.search(q, language, offset, field) });
 
-  if (p === "bnf") return gather([search(bnf)], language, onProgress);
-  if (p === "open-library") return gather([search(openLibrary)], language, onProgress);
-  if (p === "google-books") return gather([search(googleBooks)], language, onProgress);
+  if (p === "bnf") return gather([search(bnf)], language, onProgress, onNotice);
+  if (p === "open-library") return gather([search(openLibrary)], language, onProgress, onNotice);
+  if (p === "google-books") return gather([search(googleBooks)], language, onProgress, onNotice);
 
   const requests = [search(openLibrary)];
   if (language === "fr" || language === "all") requests.unshift(search(bnf));
   // Sans clé, le quota anonyme de Google est épuisé : inutile de perdre une requête.
   if (await hasGoogleKey()) requests.push(search(googleBooks));
-  return gather(requests, language, onProgress);
+  return gather(requests, language, onProgress, onNotice);
 }
 
 /* ---- Bibliographie complète d'un auteur ---- */
@@ -146,7 +156,8 @@ export async function searchCompleteAuthorBibliography(
   p: SearchProvider,
   language: BookSearchLanguage = "all",
   forceRefresh = false,
-  onProgress?: SearchProgress
+  onProgress?: SearchProgress,
+  onNotice?: SearchNotice
 ): Promise<BookSearchResult[]> {
   q = q.trim();
   if (!q) return [];
@@ -172,6 +183,7 @@ export async function searchCompleteAuthorBibliography(
     } catch {
       // on essaie la source de secours juste après
     }
+    onNotice?.(`${sourceLabel(primary)} est injoignable ou sans résultat : bibliographie issue de ${sourceLabel(fallback)}, probablement incomplète.`);
     return prepare(await fetchCompleteAuthorSource(fallback, q, language, publish), language);
   })();
 

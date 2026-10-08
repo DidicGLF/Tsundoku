@@ -22,6 +22,7 @@ export function useBookSearch() {
   const [noPreferredResults, setNoPreferredResults] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   // Chaque recherche a un numéro : les réponses tardives d'une recherche abandonnée sont ignorées.
   const currentSearch = useRef(0);
@@ -40,6 +41,7 @@ export function useBookSearch() {
     const isCurrent = () => searchId === currentSearch.current;
     setBusy(true);
     setError("");
+    setNotice("");
     setResults([]);
     setShowOtherLanguages(showOthers);
     setCanLoadMore(false);
@@ -49,8 +51,8 @@ export function useBookSearch() {
     const progress = (partial: BookSearchResult[]) => { if (isCurrent()) setResults(partial); };
     try {
       const found = field === "author"
-        ? await searchCompleteAuthorBibliography(q, provider, language, false, progress)
-        : await searchBooks(q, provider, language, 0, field, progress);
+        ? await searchCompleteAuthorBibliography(q, provider, language, false, progress, message => { if (isCurrent()) setNotice(message); })
+        : await searchBooks(q, provider, language, 0, field, progress, message => { if (isCurrent()) setNotice(message); });
       if (!isCurrent()) return;
       setResults(found);
       setOffset(PAGE_SIZE);
@@ -74,6 +76,7 @@ export function useBookSearch() {
     setNoPreferredResults(false);
     setShowOtherLanguages(false);
     setError("");
+    setNotice("");
     setBusy(false);
   }, []);
 
@@ -102,7 +105,7 @@ export function useBookSearch() {
   return {
     q, setQ, provider, setProvider, field, setField,
     results, canLoadMore, activeLanguage, showOtherLanguages, setShowOtherLanguages,
-    noPreferredResults, busy, error,
+    noPreferredResults, busy, error, notice,
     submit, searchAllLanguages, loadMore, clear
   };
 }
