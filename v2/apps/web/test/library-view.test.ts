@@ -344,3 +344,13 @@ describe("owned edition", () => {
     expect(libraryStateOf(result("9782298006094"), index)).toBe("owned");
   });
 });
+
+describe("displayTitle", () => {
+  it("drops the catalogue statement of responsibility but keeps real titles", async () => {
+    const { displayTitle } = await import("../src/lib/library-view");
+    expect(displayTitle("Le trône de diamant / David Eddings ; [trad. par E. C. L. Meistermann]")).toBe("Le trône de diamant");
+    expect(displayTitle("Le Cri : thriller (Nouvelle éd.)")).toBe("Le Cri : thriller (Nouvelle éd.)");
+    expect(displayTitle("Dune")).toBe("Dune");
+    expect(displayTitle("/ seul")).toBe("/ seul");
+  });
+});

@@ -18,6 +18,11 @@ export type LibrarySort = "RECENT" | "TITLE" | "AUTHOR" | "PROGRESS";
 export type AuthorBookFilter = "ALL" | "MISSING" | "OWNED" | "READ" | "TO_READ";
 export type AuthorBookSort = "MISSING" | "TITLE" | "DATE";
 
+/** Titre à afficher : sans la mention de responsabilité du catalogue (« / David Eddings ; [trad. …] »). */
+export function displayTitle(title: string): string {
+  return title.split(/\s\/\s?/)[0].trim() || title;
+}
+
 export function displayAuthors(authors: string[]): string {
   const values = authors.map(canonicalAuthorDisplay).filter(name => name && name !== "Auteur inconnu");
   return values.join(", ") || "Auteur inconnu";

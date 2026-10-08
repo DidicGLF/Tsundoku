@@ -3,7 +3,7 @@ import { cleanIsbn, canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAu
 import { SearchCard } from "../components/BookCards";
 import { ManualAdd } from "../components/ManualAdd";
 import type { BookSearch } from "../hooks/useBookSearch";
-import { createWorkIndex, libraryStateOf, plural } from "../lib/library-view";
+import { createWorkIndex, findLocalWork, libraryStateOf, plural } from "../lib/library-view";
 import { followAuthor } from "../services/authorLibrary";
 import { getBookLanguageGroup, type BookSearchField, type SearchProvider } from "../services/bookSearch";
 import { hasGoogleBooksApiKey } from "../services/credentials";
@@ -142,7 +142,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       {anyOtherLanguage && <div className="load-more"><button type="button" onClick={() => void search.searchAllLanguages()}>Voir aussi les autres langues</button></div>}
     </> : <>
       <div className="grid">{visible.map(b =>
-        <SearchCard key={`${b.source}-${b.sourceId}`} b={b} state={libraryStateOf(b, workIndex)}
+        <SearchCard key={`${b.source}-${b.sourceId}`} b={b} state={libraryStateOf(b, workIndex)} local={findLocalWork(b, workIndex)}
           onAdd={ready ? book => void add(book, true) : undefined}
           onAdopt={ready ? book => void adopt(book) : undefined}
           onTrack={ready ? book => void add(book, false) : undefined} />)}

@@ -4,7 +4,7 @@ import type { ReadingStatus } from "@tsundoku/database";
 import { Check, ChevronLeft, Heart, BookOpen, Star } from "../components/Icons";
 import { Cover, hueOf } from "../components/Cover";
 import {
-  bookDatesLine, displayAuthors, pageReached, primaryAuthor, progressUpdateFor, ratingLabels, readPercent
+  bookDatesLine, displayAuthors, displayTitle, pageReached, primaryAuthor, progressUpdateFor, ratingLabels, readPercent
 } from "../lib/library-view";
 import { getBookLanguageName } from "../services/language";
 import type { SimilarBooksQuery } from "../services/bookSearch";
@@ -42,7 +42,7 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
 
   async function remove() {
     if (deleteBusy) return;
-    if (!window.confirm(`Retirer « ${book.title} » de ta bibliothèque ?\n\nSon statut, sa note et sa progression seront aussi supprimés.`)) return;
+    if (!window.confirm(`Retirer « ${displayTitle(book.title)} » de ta bibliothèque ?\n\nSon statut, sa note et sa progression seront aussi supprimés.`)) return;
     setDeleteBusy(true);
     setError("");
     try {
@@ -82,7 +82,7 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
     <div className="book-hero">
       <button type="button" className="icon-button" aria-label="Retour" onClick={nav.back}><ChevronLeft size={24} /></button>
       <div className="book-hero-cover"><Cover book={book} variant="detail" /></div>
-      <h2 className="book-title">{book.title}</h2>
+      <h2 className="book-title">{displayTitle(book.title)}</h2>
       {author && author !== "Auteur inconnu" &&
         <button type="button" className="book-author" onClick={() => nav.push({ name: "author", key: canonicalAuthorIdentity(author), authorName: author })}>{displayAuthors(book.authors)}</button>}
       {book.seriesName && <p className="series-chip"><BookOpen size={14} /> {book.seriesName}{book.seriesVolume != null ? ` · tome ${book.seriesVolume}` : ""}</p>}

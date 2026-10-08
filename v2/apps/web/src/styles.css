@@ -1936,3 +1936,21 @@ select {
 .similar-banner span {
   color: var(--muted);
 }
+
+.card .card-details {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.card .card-isbn {
+  margin: 4px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.card .card-isbn span {
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+}

@@ -4,7 +4,7 @@ import { useAuthorInfo } from "../hooks/useAuthorInfo";
 import { formatLifespan } from "../lib/author-info";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  authorStats, booksOfAuthor, filterAuthorBooks, formatRefreshDate, groupBySeries, initialsOf, plural,
+  authorStats, booksOfAuthor, displayTitle, filterAuthorBooks, formatRefreshDate, groupBySeries, initialsOf, plural,
   type AuthorBookFilter, type AuthorBookSort
 } from "../lib/library-view";
 import { enrichLibraryBooks, refreshAuthor, unfollowAuthor } from "../services/authorLibrary";
@@ -106,7 +106,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
       <button type="button" className="book-row-main" onClick={() => nav.push({ name: "detail", id: book.id })}>
         <Cover book={book} variant="mini" />
         <span>
-          <strong>{book.title}</strong>
+          <strong>{displayTitle(book.title)}</strong>
           <em>{[book.seriesVolume != null ? `Tome ${book.seriesVolume}` : "", book.publishedYear ? String(book.publishedYear) : "", book.publisher ?? ""].filter(Boolean).join(" · ")}</em>
           {book.newlyDiscovered && <b className="new-book-badge">Nouveau</b>}
         </span>
