@@ -3,12 +3,13 @@ import { canonicalAuthorIdentity, collectionBase, publisherName } from "@tsundok
 import type { ReadingStatus } from "@tsundoku/database";
 import { Check, ChevronLeft, Heart, BookOpen, Star } from "../components/Icons";
 import { Cover, hueOf } from "../components/Cover";
+import { CoverPicker } from "../components/CoverPicker";
 import {
   bookDatesLine, displayAuthors, displayTitle, pageReached, primaryAuthor, progressUpdateFor, ratingLabels, readPercent
 } from "../lib/library-view";
 import { getBookLanguageName } from "../services/language";
 import type { SimilarBooksQuery } from "../services/bookSearch";
-import { removeBookFromLibrary, updateLibraryBook, type LibraryBook } from "../services/library";
+import { removeBookFromLibrary, setBookCover, updateLibraryBook, type LibraryBook } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
 
@@ -22,6 +23,7 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
   const [error, setError] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   async function patch(changes: Parameters<typeof updateLibraryBook>[1]) {
     try { setLibrary(await updateLibraryBook(book.id, changes)); }
@@ -78,10 +80,17 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
   const description = book.description?.trim();
   const longSummary = Boolean(description && description.length > SUMMARY_PREVIEW);
 
+  async function pickCover(url: string | null) {
+    setPickerOpen(false);
+    try { setLibrary(await setBookCover(book.id, url)); }
+    catch (x) { setError(x instanceof Error ? x.message : "Impossible de changer la jaquette."); }
+  }
+
   return <article className="book-page" style={{ "--hue": hueOf(book.title) } as React.CSSProperties}>
     <div className="book-hero">
       <button type="button" className="icon-button" aria-label="Retour" onClick={nav.back}><ChevronLeft size={24} /></button>
-      <div className="book-hero-cover"><Cover book={book} variant="detail" /></div>
+      <button type="button" className="book-hero-cover" aria-label="Changer de jaquette" onClick={() => setPickerOpen(true)}><Cover book={book} variant="detail" /></button>
+      <button type="button" className="text-button change-cover" onClick={() => setPickerOpen(true)}>Changer de jaquette</button>
       <h2 className="book-title">{displayTitle(book.title)}</h2>
       {author && author !== "Auteur inconnu" &&
         <button type="button" className="book-author" onClick={() => nav.push({ name: "author", key: canonicalAuthorIdentity(author), authorName: author })}>{displayAuthors(book.authors)}</button>}
@@ -89,6 +98,7 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
     </div>
 
     {error && <p className="error">{error}</p>}
+    {pickerOpen && <CoverPicker book={book} onPick={url => void pickCover(url)} onClose={() => setPickerOpen(false)} />}
 
     <div className="book-pills">
       <button type="button" className={book.owned ? "pill owned on" : "pill owned"} aria-pressed={book.owned} onClick={() => void patch({ owned: !book.owned })}>

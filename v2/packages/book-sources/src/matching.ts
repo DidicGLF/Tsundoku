@@ -72,7 +72,25 @@ function fillMissing(preferred: BookSearchResult, other: BookSearchResult): Book
 /** Merges two records of the same book, keeping the one that has a cover as base. */
 export function mergeBooks(previous: BookSearchResult, next: BookSearchResult): BookSearchResult {
   const base = previous.coverUrl ? previous : next.coverUrl ? next : previous;
-  return fillMissing(base, base === previous ? next : previous);
+  const merged = fillMissing(base, base === previous ? next : previous);
+  const cover = betterCover(previous.coverUrl, next.coverUrl);
+  return cover === merged.coverUrl ? merged : { ...merged, coverUrl: cover };
+}
+
+/**
+ * Jaquette propre à une édition : l'adresse est construite sur l'ISBN (Open Library `/b/isbn/…`,
+ * Amazon `/images/P/<ISBN-10>…`). Les autres (identifiant d'œuvre, recherche par titre) peuvent
+ * venir d'une autre édition du même livre.
+ */
+export function isExactCover(url?: string): boolean {
+  return Boolean(url && (/covers\.openlibrary\.org\/b\/isbn\//.test(url) || /\/images\/P\/[0-9Xx]{10}\./.test(url)));
+}
+
+/** Entre la jaquette actuelle et une candidate : la candidate ne gagne que si elle est exacte et pas l'actuelle. */
+export function betterCover(current?: string, candidate?: string): string | undefined {
+  if (!candidate) return current;
+  if (!current) return candidate;
+  return !isExactCover(current) && isExactCover(candidate) ? candidate : current;
 }
 
 /** Dedupes search results by ISBN-13 when known, otherwise by title and first author. */
@@ -111,8 +129,8 @@ export function isSameWork(a: BookIdentity, b: BookIdentity): boolean {
   if (isbn13A && isbn13A === b.isbn13?.replace(/\D/g, "")) return true;
   const isbn10A = a.isbn10?.replace(/[^0-9Xx]/g, "").toUpperCase();
   if (isbn10A && isbn10A === b.isbn10?.replace(/[^0-9Xx]/g, "").toUpperCase()) return true;
-  const title = normalizeText(workTitle(a.title));
-  if (!title || title !== normalizeText(workTitle(b.title))) return false;
+  const keysB = new Set(workTitleKeys(b.title));
+  if (!workTitleKeys(a.title).some(key => keysB.has(key))) return false;
   return shareAuthor(a.authors, b.authors);
 }
 
@@ -178,6 +196,21 @@ export function workTitle(title: string): string {
     t = t.replace(/\s*(\([^)]*\)?|\[[^\]]*\]?)\s*$/, "").replace(GENERIC_SUBTITLE, "").replace(SERIES_SUFFIX, "").replace(VOLUME_SUFFIX, "").trim();
   }
   return t.replace(/[\s.,;:]+$/g, "") || title;
+}
+
+/**
+ * Clés de comparaison d'un titre : le titre d'œuvre, plus la partie après « : » quand elle est assez
+ * longue pour être un titre à elle seule (« Chant 1 de la Belgariade : Le Pion blanc des présages » →
+ * « Le Pion blanc des présages », le titre que donne la BnF). La partie avant « : » n'est pas
+ * utilisée : « Astérix : Le Gaulois » et « Astérix : La Serpe d'or » restent distincts.
+ */
+export function workTitleKeys(title: string): string[] {
+  const cleaned = workTitle(title);
+  const keys = [normalizeText(cleaned)];
+  const afterColon = cleaned.split(/\s:\s/).slice(1).join(" : ");
+  const key = normalizeText(afterColon);
+  if (key && key.split(" ").length >= 3) keys.push(key);
+  return keys.filter(Boolean);
 }
 
 /** Collapses editions into works (title + canonical author) and sorts newest first. */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, isSameAuthorName, shareAuthor, workTitle, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
+import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isbn13To10, workTitleKeys, isExactCover, betterCover, isSameAuthorName, shareAuthor, workTitle, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
 import type { BookSearchResult } from "../src/types";
 
 const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
@@ -204,5 +204,41 @@ describe("series mentions glued to a title", () => {
       { title: "Le trone de diamant la trilogie des joyaux I", authors: ["Eddings"], isbn13: "9782266110075" },
       { title: "Le trône de diamant / David Eddings ; [trad. par E. C. L. Meistermann]", authors: ["David Eddings"], isbn13: "9782298006094" }
     )).toBe(true);
+  });
+});
+
+describe("exact covers", () => {
+  const isbnCover = "https://covers.openlibrary.org/b/isbn/9782266033756-L.jpg";
+  const idCover = "https://covers.openlibrary.org/b/id/1000455-L.jpg";
+  const amazon = "https://images-na.ssl-images-amazon.com/images/P/2266033751.01.LZZZZZZZ.jpg";
+  it("recognises edition-specific cover URLs", () => {
+    expect(isExactCover(isbnCover)).toBe(true);
+    expect(isExactCover(amazon)).toBe(true);
+    expect(isExactCover(idCover)).toBe(false);
+    expect(isExactCover(undefined)).toBe(false);
+  });
+  it("lets only an exact cover replace an inexact one", () => {
+    expect(betterCover(idCover, isbnCover)).toBe(isbnCover);
+    expect(betterCover(isbnCover, idCover)).toBe(isbnCover);
+    expect(betterCover(idCover, "https://covers.openlibrary.org/b/id/2-L.jpg")).toBe(idCover);
+    expect(betterCover(undefined, idCover)).toBe(idCover);
+    expect(betterCover(idCover, undefined)).toBe(idCover);
+  });
+  it("merging two records of one book keeps the exact cover whichever comes first", () => {
+    const book = (coverUrl?: string) => ({ source: "open-library", sourceId: "x", title: "Le pion blanc", authors: [], isbn13: "9782266033756", coverUrl }) as never;
+    expect(mergeSearchResults([book(idCover), book(isbnCover)])[0].coverUrl).toBe(isbnCover);
+    expect(mergeSearchResults([book(isbnCover), book(idCover)])[0].coverUrl).toBe(isbnCover);
+  });
+});
+
+describe("titles with an edition-specific prefix", () => {
+  it("also compares the part after a colon, never the part before it", () => {
+    expect(workTitleKeys("Chant 1 de la Belgariade : Le Pion blanc des présages")).toEqual(["chant 1 de la belgariade le pion blanc des presages", "le pion blanc des presages"]);
+    expect(workTitleKeys("Astérix : Le Gaulois")).toEqual(["asterix le gaulois"]);
+    expect(isSameWork(
+      { title: "Chant 1 de la Belgariade : Le Pion blanc des présages", authors: ["David Eddings"], isbn13: "9782266033756" },
+      { title: "Le pion blanc des présages / David Eddings ; [trad. par Dominique Haas]", authors: ["David Eddings"], isbn13: "9782266064668" }
+    )).toBe(true);
+    expect(isSameWork({ title: "Astérix : Le Gaulois", authors: ["Goscinny"] }, { title: "Astérix : La Serpe d'or", authors: ["Goscinny"] })).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { canonicalIsbn, normalizeText, type BookSearchResult } from "@tsundoku/book-sources";
+import { betterCover, canonicalIsbn, normalizeText, type BookSearchResult } from "@tsundoku/book-sources";
 
 /*
  * Deux caches persistants (localStorage fonctionne aussi dans la WebView Capacitor) :
@@ -59,5 +59,8 @@ export function rememberMiss(book: BookSearchResult, now = Date.now(), scope = "
 }
 
 export function withCachedCovers(books: BookSearchResult[]): BookSearchResult[] {
-  return books.map(book => book.coverUrl ? book : { ...book, coverUrl: cachedCover(book) });
+  return books.map(book => {
+    const coverUrl = betterCover(book.coverUrl, cachedCover(book));
+    return coverUrl === book.coverUrl ? book : { ...book, coverUrl };
+  });
 }

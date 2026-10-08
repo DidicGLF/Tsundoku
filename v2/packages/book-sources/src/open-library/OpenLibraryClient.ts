@@ -1,6 +1,7 @@
 import type { BookMetadata, BookSearchField, BookSearchLanguage, BookSearchResult, BookSource } from "../types";
 import { getJson } from "../http";
-import { mapOpenLibraryDoc, mapOpenLibraryWork, type OpenLibraryDoc, type OpenLibraryWork } from "./mapper";
+import { isbn10To13, isbn13To10 } from "../matching";
+import { mapOpenLibraryDoc, mapOpenLibraryEditionData, mapOpenLibraryWork, type OpenLibraryDoc, type OpenLibraryEditionData, type OpenLibraryWork } from "./mapper";
 
 const openLibraryLanguages: Record<Exclude<BookSearchLanguage, "all">, string> = {
   fr: "fre",
@@ -295,6 +296,13 @@ export class OpenLibraryClient implements BookSource {
 
     if (field === "author") return this.searchAuthorWorks(query, language, offset);
 
+    // Par ISBN, la fiche de l'édition exacte (titre, éditeur, jaquette de cette édition) prime sur
+    // celle de l'œuvre, qui peut montrer l'ISBN et la jaquette d'une autre édition.
+    if (field === "isbn") {
+      const exact = await this.searchByIsbn(query);
+      if (exact.length) return exact;
+    }
+
     const q = `${openLibraryPrefix[field]}${query}`.trim();
     const values: Record<string, string> = {
       q,
@@ -304,7 +312,27 @@ export class OpenLibraryClient implements BookSource {
     };
     const p = new URLSearchParams(values);
     const data = await getJson<{ docs?: OpenLibraryDoc[] }>(`${this.base}/search.json?${p}`);
-    return (data.docs ?? []).map(mapOpenLibraryDoc);
+    const books = (data.docs ?? []).map(mapOpenLibraryDoc);
+    if (field !== "isbn") return books;
+    // Sans fiche d'édition : la notice d'œuvre garde au moins l'ISBN demandé (pas celui d'une autre édition).
+    const wanted = cleanIsbn(query);
+    const wanted13 = wanted.length === 13 ? wanted : isbn10To13(wanted);
+    const wanted10 = wanted.length === 10 ? wanted : isbn13To10(wanted);
+    return books.map((book, index) => {
+      const known = (data.docs?.[index]?.isbn ?? []).map(cleanIsbn);
+      return known.includes(wanted) ? { ...book, isbn13: wanted13 ?? book.isbn13, isbn10: wanted10 ?? book.isbn10 } : book;
+    });
+  }
+
+  private async searchByIsbn(query: string): Promise<BookSearchResult[]> {
+    const isbn = cleanIsbn(query);
+    if (isbn.length !== 10 && isbn.length !== 13) return [];
+    const [data, edition] = await Promise.all([
+      getJson<Record<string, OpenLibraryEditionData>>(`${this.base}/api/books?${new URLSearchParams({ bibkeys: `ISBN:${isbn}`, format: "json", jscmd: "data" })}`).catch(() => ({} as Record<string, OpenLibraryEditionData>)),
+      getJson<{ languages?: Array<{ key?: string }> }>(`${this.base}/isbn/${isbn}.json`, { retries: 0 }).catch(() => null)
+    ]);
+    const entry = data[`ISBN:${isbn}`];
+    return entry ? [mapOpenLibraryEditionData(entry, isbn, edition?.languages?.[0]?.key)] : [];
   }
 
   async getBook(id: string): Promise<BookMetadata> {

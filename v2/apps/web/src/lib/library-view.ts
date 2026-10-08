@@ -1,5 +1,5 @@
 import {
-  canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, canonicalIsbn, cleanIsbn, isSameAuthorName, isSameWork, normalizeText, shareAuthor, workTitle,
+  canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, canonicalIsbn, cleanIsbn, isSameAuthorName, isSameWork, normalizeText, shareAuthor, workTitle, workTitleKeys,
   type BookSearchResult
 } from "@tsundoku/book-sources";
 import type { EditionUpdate, ReadingStatus } from "@tsundoku/database";
@@ -242,13 +242,19 @@ export interface WorkIndex {
 const isbnsOf = (book: { isbn10?: string; isbn13?: string }) =>
   [canonicalIsbn(book), cleanIsbn(book.isbn10), cleanIsbn(book.isbn13)].filter((value): value is string => Boolean(value));
 
+function addToTitleIndex(index: WorkIndex, book: LibraryBook): void {
+  for (const key of workTitleKeys(book.title)) {
+    const list = index.byTitle.get(key) ?? [];
+    if (!list.includes(book)) index.byTitle.set(key, [...list, book]);
+  }
+}
+
 /** Index des livres de la bibliothèque, pour retrouver l'œuvre d'un résultat sans comparer un par un. */
 export function createWorkIndex(library: LibraryBook[]): WorkIndex {
   const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map(), bySource: new Map() };
   for (const book of library) {
     index.bySource.set(`${book.source}:${book.sourceId}`, book);
-    const key = normalizeText(workTitle(book.title));
-    index.byTitle.set(key, [...(index.byTitle.get(key) ?? []), book]);
+    addToTitleIndex(index, book);
     for (const isbn of isbnsOf(book)) index.byIsbn.set(isbn, book);
   }
   return index;
@@ -265,7 +271,11 @@ export function findLocalWork(book: BookSearchResult, index: WorkIndex): Library
     const found = index.byIsbn.get(isbn);
     if (found) return found;
   }
-  return (index.byTitle.get(normalizeText(workTitle(book.title))) ?? []).find(local => shareAuthor(book.authors, local.authors));
+  for (const key of workTitleKeys(book.title)) {
+    const found = (index.byTitle.get(key) ?? []).find(local => shareAuthor(book.authors, local.authors));
+    if (found) return found;
+  }
+  return undefined;
 }
 
 /**
@@ -321,8 +331,7 @@ export function planDuplicateMerges(library: LibraryBook[]): DuplicateMerge[] {
     const keeper = findLocalWork(book as unknown as BookSearchResult, index);
     if (keeper) { groups.get(keeper.id)?.push(book); continue; }
     groups.set(book.id, [book]);
-    const key = normalizeText(workTitle(book.title));
-    index.byTitle.set(key, [...(index.byTitle.get(key) ?? []), book]);
+    addToTitleIndex(index, book);
     index.bySource.set(`${book.source}:${book.sourceId}`, book);
     for (const isbn of isbnsOf(book)) index.byIsbn.set(isbn, book);
   }

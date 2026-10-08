@@ -1,5 +1,5 @@
 import {
-  GoogleBooksClient, canonicalAuthorDisplay, canonicalIsbn, cleanCatalogTitle, cleanIsbn, getJson, isbn13To10,
+  GoogleBooksClient, betterCover, canonicalAuthorDisplay, canonicalIsbn, cleanCatalogTitle, cleanIsbn, getJson, isbn13To10, isExactCover,
   isConfidentCoverMatch, isSameEdition, mergeSearchResults,
   type BookSearchLanguage, type BookSearchResult
 } from "@tsundoku/book-sources";
@@ -50,7 +50,6 @@ async function coversFromIsbn(books: BookSearchResult[]): Promise<Map<string, st
   const result = new Map<string, string>();
   const byIsbn = new Map<string, BookSearchResult[]>();
   for (const book of books) {
-    if (book.coverUrl) continue;
     const isbn = canonicalIsbn(book) ?? cleanIsbn(book.isbn10);
     if (!isbn) continue;
     byIsbn.set(isbn, [...(byIsbn.get(isbn) ?? []), book]);
@@ -67,8 +66,10 @@ async function coversFromIsbn(books: BookSearchResult[]): Promise<Map<string, st
       const data = await getJson<OpenLibraryBooksData>(`https://openlibrary.org/api/books?${params}`, { timeoutMs: 10000 });
       for (const isbn of chunk) {
         const cover = data[`ISBN:${isbn}`]?.cover;
-        const url = cover?.large ?? cover?.medium ?? cover?.small;
-        if (url) for (const book of byIsbn.get(isbn) ?? []) covers.set(coverKey(book), https(url));
+        // Adresse par ISBN : c'est la jaquette de cette édition, pas celle d'une autre de la même œuvre.
+        if (cover?.large ?? cover?.medium ?? cover?.small) {
+          for (const book of byIsbn.get(isbn) ?? []) covers.set(coverKey(book), `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`);
+        }
       }
     } catch {
       // Une panne de l'API de jaquettes ne doit jamais bloquer l'application.
@@ -86,6 +87,13 @@ function isbn10Of(book: BookSearchResult): string | undefined {
   if (own?.length === 10) return own;
   const isbn13 = canonicalIsbn(book);
   return isbn13 ? isbn13To10(isbn13) : undefined;
+}
+
+/** Adresse de la jaquette Amazon d'un livre, si elle existe (une requête d'en-têtes). */
+export async function findAmazonCover(book: BookSearchResult): Promise<string | undefined> {
+  if (!COVER_SOURCES.amazon) return undefined;
+  const found = await coversFromAmazon([book]);
+  return found.get(coverKey(book));
 }
 
 /**
@@ -195,13 +203,19 @@ export async function enrichSearchResults(
   const apply = (covers: Map<string, string>) => {
     if (!covers.size) return;
     current = current.map(book => {
-      const url = book.coverUrl ? undefined : covers.get(coverKey(book));
-      if (!url) return book;
-      rememberCover(book, url);
-      return { ...book, coverUrl: url };
+      const found = covers.get(coverKey(book));
+      if (!found) return book;
+      // Une jaquette exacte (par ISBN) remplace celle d'une autre édition ; jamais l'inverse.
+      const next = betterCover(book.coverUrl, found);
+      if (next === book.coverUrl) return book;
+      rememberCover(book, next!);
+      return { ...book, coverUrl: next };
     });
     onProgress?.(publish());
   };
+
+  /** Un livre à ISBN dont la jaquette n'est pas (encore) celle de son édition. */
+  const needsExact = (book: BookSearchResult) => hasIsbn(book) && !isExactCover(book.coverUrl);
 
   /** Recherche par titre, par lots : chaque lot trouvé est publié tout de suite. */
   const titleStage = async (candidates: BookSearchResult[]) => {
@@ -211,10 +225,10 @@ export async function enrichSearchResults(
     for (let start = 0; start < todo.length; start += BATCH_SIZE) apply(await coversFromTitle(todo.slice(start, start + BATCH_SIZE)));
   };
 
-  /** Amazon, seulement pour les livres à ISBN encore sans jaquette (exacte à l'édition, donc préférable au titre). */
+  /** Amazon, pour les livres à ISBN dont la jaquette n'est pas encore celle de leur édition. */
   const amazonStage = async () => {
     if (!COVER_SOURCES.amazon) return;
-    const eligible = current.filter(book => !book.coverUrl && hasIsbn(book) && !recentlyMissed(book, Date.now(), "amazon"));
+    const eligible = current.filter(book => needsExact(book) && !recentlyMissed(book, Date.now(), "amazon"));
     if (eligible.length > AMAZON_LOOKUP_LIMIT) truncated = true;
     const todo = eligible.slice(0, AMAZON_LOOKUP_LIMIT);
     for (let start = 0; start < todo.length; start += BATCH_SIZE) apply(await coversFromAmazon(todo.slice(start, start + BATCH_SIZE)));
@@ -222,7 +236,7 @@ export async function enrichSearchResults(
 
   // Les lots d'ISBN (une requête pour 50 livres) puis Amazon, et les notices sans ISBN, avancent en parallèle.
   await Promise.all([
-    coversFromIsbn(current).then(apply).then(amazonStage),
+    coversFromIsbn(current.filter(needsExact)).then(apply).then(amazonStage),
     titleStage(current.filter(book => !hasIsbn(book)))
   ]);
   await titleStage(current.filter(book => !book.coverUrl));

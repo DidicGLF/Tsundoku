@@ -354,3 +354,28 @@ describe("displayTitle", () => {
     expect(displayTitle("/ seul")).toBe("/ seul");
   });
 });
+
+describe("cover candidates", () => {
+  it("lists the edition's own covers first, then other editions (French first), without duplicates", async () => {
+    const { assembleCandidates } = await import("../src/services/coverCandidates");
+    const list = assembleCandidates({
+      isbn: "9782266033756", exactOpenLibrary: true, amazonUrl: "https://images-na.ssl-images-amazon.com/images/P/2266033751.01.LZZZZZZZ.jpg",
+      editionCovers: [979538, 111],
+      workCovers: [1000455, 979538, 222],
+      otherEditions: [
+        { covers: [1000455], publishers: ["Corgi"], publish_date: "1983" },
+        { covers: [979538, 333], publishers: ["Pocket"], publish_date: "January 1, 1990", languages: [{ key: "/languages/fre" }] },
+        { covers: [] }
+      ]
+    });
+    expect(list.map(c => c.id)).toEqual(["ol-isbn", "amazon", "ed-111", "w-333", "w-1000455", "w-222"]);
+    expect(list.slice(0, 3).every(c => c.exact)).toBe(true);
+    expect(list.find(c => c.id === "w-333")?.label).toBe("Pocket 1990 · FR");
+    expect(list.find(c => c.id === "w-1000455")?.label).toBe("Corgi 1983");
+    expect(assembleCandidates({ isbn: "1", exactOpenLibrary: false, editionCovers: [], workCovers: [], otherEditions: [] })).toEqual([]);
+    // adresse par ISBN muette : la jaquette de l'édition reste proposée, en premier
+    const fallback = assembleCandidates({ isbn: "1", exactOpenLibrary: false, editionCovers: [979538], workCovers: [979538, 5], otherEditions: [] });
+    expect(fallback.map(c => c.id)).toEqual(["ed-979538", "w-5"]);
+    expect(fallback[0].exact).toBe(true);
+  });
+});

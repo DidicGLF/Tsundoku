@@ -112,6 +112,13 @@ export async function adoptEdition(book: BookSearchResult): Promise<StoredLibrar
   return repo.list();
 }
 
+/** Choix manuel de la jaquette (`null` la retire). */
+export async function setBookCover(id: string, url: string | null): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  await repo.setEdition(id, { coverUrl: url });
+  return repo.list();
+}
+
 export async function addBooksToLibrary(books: BookSearchResult[], owned = false, newlyDiscovered = false): Promise<StoredLibraryBook[]> {
   const repo = await repository();
   const index = createWorkIndex(await repo.list());
