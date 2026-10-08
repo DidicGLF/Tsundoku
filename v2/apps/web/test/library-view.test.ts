@@ -240,8 +240,19 @@ describe("friendlySearchError", () => {
   it("explains quota and availability errors in French", async () => {
     const { friendlySearchError } = await import("../src/services/bookSearch");
     expect(friendlySearchError(new Error("HTTP 429 while requesting www.googleapis.com"), false)).toContain("ajoute une clé gratuite");
-    expect(friendlySearchError(new Error("HTTP 429 while requesting www.googleapis.com"), true)).toContain("Réessaie dans quelques minutes");
+    expect(friendlySearchError(new Error("HTTP 429 while requesting www.googleapis.com"), true)).toContain("quota du jour");
+    expect(friendlySearchError(new Error("HTTP 429 while requesting openlibrary.org"), true)).toContain("Réessaie dans quelques minutes");
     expect(friendlySearchError(new Error("HTTP 503 while requesting catalogue.bnf.fr"), false)).toBe("BnF est momentanément indisponible (erreur 503). Réessaie dans un instant ou change de source.");
     expect(friendlySearchError(new Error("Délai dépassé en interrogeant openlibrary.org"), false)).toBe("Délai dépassé en interrogeant openlibrary.org");
+  });
+});
+
+describe("nextQuotaReset", () => {
+  it("returns the next midnight in Los Angeles", async () => {
+    const { nextQuotaReset } = await import("../src/services/googleQuota");
+    // 2026-10-08 16:00 UTC = 09:00 PDT → minuit PDT suivant = 2026-10-09 07:00 UTC
+    expect(new Date(nextQuotaReset(Date.parse("2026-10-08T16:00:00Z"))).toISOString()).toBe("2026-10-09T07:00:00.000Z");
+    // une seconde après minuit PDT : le prochain minuit est 24 h moins une seconde plus tard
+    expect(new Date(nextQuotaReset(Date.parse("2026-10-08T07:00:01Z"))).toISOString()).toBe("2026-10-09T07:00:00.000Z");
   });
 });

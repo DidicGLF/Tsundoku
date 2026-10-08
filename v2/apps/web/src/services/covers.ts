@@ -227,7 +227,7 @@ export async function enrichSearchResults(
   ]);
   await titleStage(current.filter(book => !book.coverUrl));
 
-  if (await hasGoogleKey()) {
+  if (COVER_SOURCES.googleBooks && (await hasGoogleKey())) {
     const eligible = current.filter(book => !book.coverUrl && !recentlyMissed(book));
     if (eligible.length > GOOGLE_LOOKUP_LIMIT) truncated = true;
     apply(await coversFromGoogle(eligible.slice(0, GOOGLE_LOOKUP_LIMIT)));

@@ -4,6 +4,7 @@ import {
 } from "@tsundoku/book-sources";
 import { withCachedCovers } from "./coverCache";
 import { getCredentialStore } from "./credentials";
+import { formatResetTime, googleQuotaResetAt, markGoogleQuotaExhausted } from "./googleQuota";
 import { rankByLanguage } from "./language";
 
 export type SearchProvider = "all" | "bnf" | "open-library" | "google-books";
@@ -49,7 +50,11 @@ async function gather(
       merged = mergeSearchResults([...merged, ...found]);
       onProgress?.(prepare(merged, language));
     },
-    error => { errors.push(error); failed.push(source); }
+    error => {
+      errors.push(error);
+      failed.push(source);
+      if (source.id === "google-books" && /HTTP 429/.test(String((error as Error)?.message))) markGoogleQuotaExhausted();
+    }
   )));
   if (errors.length === requests.length) {
     throw requests.length === 1 ? errors[0] : new Error("Aucune source de livres n'est disponible.");
@@ -69,12 +74,16 @@ export async function searchBooks(
 
   if (p === "bnf") return gather([search(bnf)], language, onProgress, onNotice);
   if (p === "open-library") return gather([search(openLibrary)], language, onProgress, onNotice);
-  if (p === "google-books") return gather([search(googleBooks)], language, onProgress, onNotice);
+  if (p === "google-books") {
+    const resetAt = googleQuotaResetAt();
+    if (resetAt) throw new Error(`Google Books : quota du jour atteint, il revient vers ${formatResetTime(resetAt)}.`);
+    return gather([search(googleBooks)], language, onProgress, onNotice);
+  }
 
   const requests = [search(openLibrary)];
   if (language === "fr" || language === "all") requests.unshift(search(bnf));
   // Sans clé, le quota anonyme de Google est épuisé : inutile de perdre une requête.
-  if (await hasGoogleKey()) requests.push(search(googleBooks));
+  if ((await hasGoogleKey()) && !googleQuotaResetAt()) requests.push(search(googleBooks));
   return gather(requests, language, onProgress, onNotice);
 }
 
@@ -207,9 +216,12 @@ export function friendlySearchError(error: unknown, hasGoogleKey: boolean): stri
   const [, status, host] = match;
   const label = host.includes("googleapis") ? "Google Books" : host.includes("bnf.fr") ? "BnF" : host.includes("openlibrary") ? "Open Library" : host;
   if (status === "429") {
+    const resetAt = googleQuotaResetAt();
     const advice = label === "Google Books" && !hasGoogleKey
       ? "Sans clé, son quota anonyme est partagé et souvent épuisé : ajoute une clé gratuite dans Paramètres, ou choisis « Toutes les sources »."
-      : "Réessaie dans quelques minutes.";
+      : label === "Google Books"
+        ? `Le quota du jour (1000 requêtes par projet) est atteint${resetAt ? `, il revient vers ${formatResetTime(resetAt)}` : ""}. Choisis « Toutes les sources » en attendant.`
+        : "Réessaie dans quelques minutes.";
     return `${label} limite le nombre de requêtes (quota atteint). ${advice}`;
   }
   return `${label} est momentanément indisponible (erreur ${status}). Réessaie dans un instant ou change de source.`;

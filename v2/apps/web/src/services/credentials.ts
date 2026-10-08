@@ -6,6 +6,8 @@ import {
   type CredentialStore
 } from "@tsundoku/credentials";
 
+import { clearGoogleQuotaFlag } from "./googleQuota";
+
 const GOOGLE_BOOKS_KEY = "googleBooksApiKey";
 
 class AndroidCredentialStore implements CredentialStore {
@@ -52,6 +54,8 @@ export async function saveGoogleBooksApiKey(key: string): Promise<void> {
     throw new Error("La clé Google Books semble invalide.");
   }
   await credentialStore.setGoogleBooksApiKey(key);
+  // Une nouvelle clé peut venir d'un autre projet, donc d'un quota neuf.
+  clearGoogleQuotaFlag();
 }
 
 export async function deleteGoogleBooksApiKey(): Promise<void> {

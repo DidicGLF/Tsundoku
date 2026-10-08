@@ -7,5 +7,10 @@
  * Quand elle est coupée ou indisponible, la tuile de substitution prend la place.
  */
 export const COVER_SOURCES = {
-  amazon: true
+  amazon: true,
+  /**
+   * Google Books pour les jaquettes : gain mesuré de 1 à 4 points seulement, au prix du quota
+   * quotidien (1000 requêtes) qui sert mieux aux recherches d'ISBN. Coupé par défaut.
+   */
+  googleBooks: false
 } as const;
