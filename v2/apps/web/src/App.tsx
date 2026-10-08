@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useBookSearch } from "./hooks/useBookSearch";
 import { useLibraryFilters } from "./hooks/useLibraryFilters";
 import { AuthorScreen } from "./screens/AuthorScreen";
@@ -29,6 +30,15 @@ function Shell() {
   const search = useBookSearch();
 
   const { route } = nav;
+
+  // Arriver sur « Rechercher » par l'onglet ou l'accueil = nouvelle recherche, champ vide.
+  // Revenir d'un auteur ou d'une fiche garde la recherche en cours.
+  const previousRoute = useRef(route.name);
+  const { clear: clearSearch } = search;
+  useEffect(() => {
+    if (route.name === "add" && previousRoute.current !== "author" && previousRoute.current !== "detail") clearSearch();
+    previousRoute.current = route.name;
+  }, [route, clearSearch]);
   const book = route.name === "detail" ? library.find(b => b.id === route.id) : undefined;
 
   const title =

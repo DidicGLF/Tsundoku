@@ -64,6 +64,19 @@ export function useBookSearch() {
     }
   }, [q, provider, field, enrichInBackground]);
 
+  /** Repart d'une recherche vierge : champ vide, résultats effacés, recherche en cours abandonnée. */
+  const clear = useCallback(() => {
+    currentSearch.current++;
+    setQ("");
+    setResults([]);
+    setOffset(0);
+    setCanLoadMore(false);
+    setNoPreferredResults(false);
+    setShowOtherLanguages(false);
+    setError("");
+    setBusy(false);
+  }, []);
+
   const submit = useCallback((e: FormEvent) => { e.preventDefault(); void run(preferredLanguage, false); }, [run, preferredLanguage]);
   const searchAllLanguages = useCallback(() => run("all", true), [run]);
 
@@ -90,7 +103,7 @@ export function useBookSearch() {
     q, setQ, provider, setProvider, field, setField,
     results, canLoadMore, activeLanguage, showOtherLanguages, setShowOtherLanguages,
     noPreferredResults, busy, error,
-    submit, searchAllLanguages, loadMore
+    submit, searchAllLanguages, loadMore, clear
   };
 }
 
