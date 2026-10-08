@@ -119,6 +119,17 @@ export function collapseToWorks(results: BookSearchResult[]): BookSearchResult[]
 }
 
 /**
+ * Notice BnF sans auteur ni ISBN : fiche de collection, document sans identifiant exploitable.
+ * Impossible à rattacher à un auteur, à dédoublonner ou à illustrer : on l'écarte.
+ */
+export function isUnusableNotice(book: { source: string; authors: string[]; isbn10?: string; isbn13?: string }): boolean {
+  return book.source === "bnf"
+    && !book.authors.some(name => name.trim())
+    && !cleanIsbn(book.isbn13)
+    && !cleanIsbn(book.isbn10);
+}
+
+/**
  * Catalogue titles carry cataloguing noise: "Dune ; (suivi de) Le Messie de Dune : roman /",
  * "Avant Dune / Brian Herbert". Keeps the main title only, so it can be matched elsewhere.
  */

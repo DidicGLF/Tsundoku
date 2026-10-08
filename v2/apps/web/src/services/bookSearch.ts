@@ -1,5 +1,5 @@
 import {
-  BnfClient, GoogleBooksClient, OpenLibraryClient, canonicalIsbn, mergeSearchResults, normalizeText as normalize,
+  BnfClient, GoogleBooksClient, OpenLibraryClient, canonicalIsbn, isUnusableNotice, mergeSearchResults, normalizeText as normalize,
   type BookSearchField, type BookSearchLanguage, type BookSearchResult
 } from "@tsundoku/book-sources";
 import { withCachedCovers } from "./coverCache";
@@ -26,7 +26,7 @@ async function hasGoogleKey(): Promise<boolean> {
 }
 
 const prepare = (books: BookSearchResult[], language: BookSearchLanguage) =>
-  rankByLanguage(withCachedCovers(mergeSearchResults(books)), language);
+  rankByLanguage(withCachedCovers(mergeSearchResults(books.filter(book => !isUnusableNotice(book)))), language);
 
 /**
  * Interroge plusieurs sources en parallèle et publie les résultats dès qu'une répond :

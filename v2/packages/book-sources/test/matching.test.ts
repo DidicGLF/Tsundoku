@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isSameEdition, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
+import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isSameEdition, isUnusableNotice, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
 import type { BookSearchResult } from "../src/types";
 
 const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
@@ -112,5 +112,19 @@ describe("isConfidentCoverMatch", () => {
   });
   it("accepts a title match when the wanted book has no author", () => {
     expect(isConfidentCoverMatch({ title: "Dune", authors: [] }, { title: "Dune", author_name: ["Frank Herbert"] })).toBe(true);
+  });
+});
+
+describe("isUnusableNotice", () => {
+  const notice = { source: "bnf", authors: [] as string[] };
+  it("drops BnF notices with neither author nor ISBN", () => {
+    expect(isUnusableNotice(notice)).toBe(true);
+    expect(isUnusableNotice({ ...notice, authors: ["  "] })).toBe(true);
+  });
+  it("keeps notices that have an author or an ISBN, and other sources", () => {
+    expect(isUnusableNotice({ ...notice, authors: ["Isaac Asimov"] })).toBe(false);
+    expect(isUnusableNotice({ ...notice, isbn13: "9782266063470" })).toBe(false);
+    expect(isUnusableNotice({ ...notice, isbn10: "2266063472" })).toBe(false);
+    expect(isUnusableNotice({ source: "open-library", authors: [] })).toBe(false);
   });
 });
