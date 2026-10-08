@@ -1,6 +1,6 @@
 import type { SqliteAdapter } from "./adapter";
 import type {
-  BookSourceName, EditionUpdate, FollowedAuthor, LibraryBookUpdate, NewLibraryBook, ReadingStatus, StoredLibraryBook
+  BookSourceName, EditionUpdate, FollowedAuthor, LibraryBookUpdate, NewLibraryBook, ReadingStatus, StoredLibraryBook, UserBookState
 } from "./types";
 
 type Row = Record<string, unknown>;
@@ -422,6 +422,44 @@ export class SqliteLibraryRepository {
       [now, now, id, this.userId]
     );
     if (!result.rowsAffected) throw new Error("Livre introuvable dans la bibliothèque.");
+  }
+
+  /** Writes the user's data on a book exactly as given (no derived dates), e.g. when restoring a backup. */
+  async applyState(id: string, state: UserBookState): Promise<void> {
+    const columns: Array<[string, unknown]> = [];
+    if (state.status !== undefined) columns.push(["status", state.status]);
+    if (state.owned !== undefined) columns.push(["owned", state.owned ? 1 : 0]);
+    if (state.favorite !== undefined) columns.push(["favorite", state.favorite ? 1 : 0]);
+    if (state.rating !== undefined) {
+      if (state.rating !== null && (!Number.isInteger(state.rating) || state.rating < 1 || state.rating > 5)) throw new Error("La note doit être un nombre entier de 1 à 5.");
+      columns.push(["rating", state.rating]);
+    }
+    if (state.progressValue !== undefined) columns.push(["progress_value", state.progressValue]);
+    if (state.progressTotal !== undefined) columns.push(["progress_total", state.progressTotal]);
+    if (state.startedAt !== undefined) columns.push(["started_at", state.startedAt]);
+    if (state.finishedAt !== undefined) columns.push(["finished_at", state.finishedAt]);
+    if (!columns.length) return;
+    if (state.newlyDiscovered !== undefined) columns.push(["newly_discovered", state.newlyDiscovered ? 1 : 0]);
+    const now = new Date().toISOString();
+    await this.db.execute(
+      `UPDATE user_books SET ${columns.map(([name]) => `${name} = ?`).join(", ")}, updated_at = ?
+       WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
+      [...columns.map(([, value]) => value ?? null), now, id, this.userId]
+    );
+  }
+
+  /** Adds a book (deduplicated like `add`) and restores the user's data on it. */
+  async importBook(input: NewLibraryBook, state: UserBookState): Promise<void> {
+    await this.db.transaction(async () => {
+      await this.add({ ...input, owned: state.owned ?? input.owned ?? true });
+      const found = await this.findUserBook(input, false);
+      if (found) await this.applyState(found.id, state);
+    });
+  }
+
+  async listFollowedAuthors(): Promise<FollowedAuthor[]> {
+    const rows = await this.db.query<Row>("SELECT author_key, name, last_refreshed_at FROM followed_authors ORDER BY name");
+    return rows.map(row => ({ authorKey: String(row.author_key), name: String(row.name), lastRefreshedAt: stringOrUndefined(row.last_refreshed_at) }));
   }
 
   async getFollowedAuthor(authorKey: string): Promise<FollowedAuthor | null> {

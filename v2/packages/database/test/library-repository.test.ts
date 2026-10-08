@@ -248,6 +248,24 @@ describe("refreshMetadata", () => {
   });
 });
 
+describe("backup helpers", () => {
+  it("applyState writes dates and ratings as given, importBook restores a full book once", async () => {
+    await repo.importBook(dune, { owned: true, status: "READ", rating: 4, favorite: true, startedAt: "2025-03-01T10:00:00Z", finishedAt: "2025-03-20T10:00:00Z", progressValue: 600, progressTotal: 600 });
+    const [book] = await repo.list();
+    expect(book).toMatchObject({ owned: true, status: "READ", rating: 4, favorite: true, startedAt: "2025-03-01T10:00:00Z", finishedAt: "2025-03-20T10:00:00Z", progressValue: 600 });
+    // même livre importé deux fois : pas de doublon, l'état est réécrit
+    await repo.importBook(dune, { status: "READING", finishedAt: null });
+    expect(await repo.list()).toHaveLength(1);
+    expect((await repo.list())[0]).toMatchObject({ status: "READING", finishedAt: undefined, rating: 4 });
+    await expect(repo.applyState(book.id, { rating: 9 })).rejects.toThrow("1 à 5");
+  });
+  it("lists followed authors", async () => {
+    await repo.upsertFollowedAuthor("frank herbert", "Frank Herbert", "2026-01-01T00:00:00Z");
+    await repo.upsertFollowedAuthor("david eddings", "David Eddings", "2026-02-01T00:00:00Z");
+    expect((await repo.listFollowedAuthors()).map(a => a.name)).toEqual(["David Eddings", "Frank Herbert"]);
+  });
+});
+
 describe("setEdition", () => {
   it("replaces ISBN, publisher and cover with the owned edition, clears a cover on request, keeps what is not given", async () => {
     await repo.add({ ...dune, coverUrl: "old.jpg", publisher: "Ace", pageCount: 600 });

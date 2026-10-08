@@ -68,6 +68,19 @@ export interface EditionUpdate {
   coverUrl?: string | null;
 }
 
+/** The user's own data on a book, written as is (dates are kept, nothing is derived): used by import and merges. */
+export interface UserBookState {
+  status?: ReadingStatus;
+  owned?: boolean;
+  favorite?: boolean;
+  rating?: number | null;
+  progressValue?: number | null;
+  progressTotal?: number | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  newlyDiscovered?: boolean;
+}
+
 export interface LibraryBookUpdate {
   status?: ReadingStatus;
   favorite?: boolean;

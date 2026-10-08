@@ -1,4 +1,4 @@
-import { canonicalAuthorDisplay, canonicalIsbn, cleanIsbn, isbn10To13, isbn13To10, type BookSearchResult } from "@tsundoku/book-sources";
+import { cleanIsbn, isbn10To13, isbn13To10, type BookSearchResult } from "@tsundoku/book-sources";
 import {
   SqliteLibraryRepository,
   runMigrations,
@@ -7,7 +7,9 @@ import {
   type StoredLibraryBook,
   type LibraryBookUpdate,
 } from "@tsundoku/database";
+import { applyImportTo, type BackupFile, type ImportPlan, type ImportReport } from "../lib/backup";
 import { completeAuthorNames, createWorkIndex, editionOf, findLocalWork, planDuplicateMerges } from "../lib/library-view";
+import { toNewBook } from "../lib/new-book";
 import { searchBooks } from "./bookSearch";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
@@ -38,26 +40,6 @@ function repository(): Promise<SqliteLibraryRepository> {
 }
 
 /** Search result -> library input, with catalogue author labels normalized and ISBN-13 derived. */
-function toNewBook(book: BookSearchResult, extra: Pick<NewLibraryBook, "owned" | "newlyDiscovered"> = {}): NewLibraryBook {
-  return {
-    source: book.source,
-    sourceId: book.sourceId,
-    title: book.title,
-    authors: book.authors.map(canonicalAuthorDisplay).filter(name => name !== "Auteur inconnu"),
-    publishedYear: book.publishedYear,
-    publisher: book.publisher,
-    isbn10: book.isbn10,
-    isbn13: canonicalIsbn(book) ?? book.isbn13,
-    pageCount: book.pageCount,
-    language: book.language,
-    description: book.description,
-    collection: book.collection,
-    coverUrl: book.coverUrl,
-    seriesName: book.seriesName,
-    seriesVolume: book.seriesVolume,
-    ...extra
-  };
-}
 
 export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
   const repo = await repository();
@@ -182,6 +164,19 @@ export async function updateLibraryBook(
   const repo = await repository();
   await repo.update(id, changes);
   return repo.list();
+}
+
+/** Tout ce qu'une sauvegarde contient : les livres et les auteurs suivis. */
+export async function exportLibraryData(): Promise<{ library: StoredLibraryBook[]; followed: FollowedAuthor[] }> {
+  const repo = await repository();
+  return { library: await repo.list(), followed: await repo.listFollowedAuthors() };
+}
+
+/** Applique le plan d'import en une seule transaction : tout ou rien. */
+export async function applyImport(plan: ImportPlan, backup: BackupFile): Promise<ImportReport & { library: StoredLibraryBook[] }> {
+  const repo = await repository();
+  const report = await applyImportTo(repo, plan, backup);
+  return { ...report, library: await repo.list() };
 }
 
 export type FollowedAuthorInfo = FollowedAuthor;

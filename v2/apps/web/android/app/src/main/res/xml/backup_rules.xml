@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 6 à 11 : sauvegarde automatique de la base (la bibliothèque), jamais des secrets. -->
+<full-backup-content>
+    <include domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+</full-backup-content>

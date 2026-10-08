@@ -401,3 +401,57 @@ describe("Google covers in the picker", () => {
     expect(list.filter(c => c.label.startsWith("Google")).map(c => c.url)).toEqual(["https://g/1.jpg", "https://g/2.jpg"]);
   });
 });
+
+describe("backup", () => {
+  const lb = (id: string, title: string, authors: string[], isbn13: string, extra: object = {}) =>
+    ({ id, source: "bnf", sourceId: id, title, authors, isbn13, addedAt: "2026-10-01T10:00:00Z", owned: false, favorite: false, status: "TO_READ", ...extra }) as never;
+
+  it("builds a file that parses back to the same books", async () => {
+    const { buildBackup, parseBackup, backupFileName } = await import("../src/lib/backup");
+    const library = [lb("1", "Dune", ["Frank Herbert"], "9782266233200", { owned: true, status: "READ", rating: 5, coverUrl: "data:image/jpeg;base64,AAAA", seriesName: "Dune", seriesVolume: 1 })];
+    const backup = buildBackup(library, [{ authorKey: "frank herbert", name: "Frank Herbert", lastRefreshedAt: "2026-10-01T00:00:00Z" }], new Date("2026-10-08T12:00:00Z"));
+    const parsed = parseBackup(JSON.stringify(backup));
+    expect(parsed.books[0]).toMatchObject({ title: "Dune", owned: true, status: "READ", rating: 5, coverUrl: "data:image/jpeg;base64,AAAA", seriesName: "Dune", seriesVolume: 1 });
+    expect(parsed.followedAuthors).toEqual([{ authorKey: "frank herbert", name: "Frank Herbert", lastRefreshedAt: "2026-10-01T00:00:00Z" }]);
+    expect(backupFileName(new Date("2026-10-08T12:00:00Z"))).toBe("tsundoku-sauvegarde-2026-10-08.json");
+  });
+
+  it("refuses foreign or newer files and sanitises odd values", async () => {
+    const { parseBackup } = await import("../src/lib/backup");
+    expect(() => parseBackup("pas du json")).toThrow("illisible");
+    expect(() => parseBackup(JSON.stringify({ app: "autre", books: [] }))).toThrow("pas une sauvegarde Tsundoku");
+    expect(() => parseBackup(JSON.stringify({ app: "tsundoku", format: 99, books: [] }))).toThrow("plus récente");
+    const parsed = parseBackup(JSON.stringify({ app: "tsundoku", format: 1, books: [
+      { title: "A", rating: 9, status: "BIZARRE", coverUrl: "http://exemple.fr/x.jpg", authors: ["X", 3] },
+      { title: "", authors: [] }, { nothing: true }
+    ] }));
+    expect(parsed.books).toHaveLength(1);
+    expect(parsed.books[0]).toMatchObject({ title: "A", rating: undefined, status: "TO_READ", coverUrl: undefined, authors: ["X"], owned: true });
+  });
+
+  it("merges into existing books without overwriting, and adds the others", async () => {
+    const { planImport } = await import("../src/lib/backup");
+    const library = [
+      lb("a", "Le trône de diamant / David Eddings", ["David Eddings"], "9782298006094"),
+      lb("b", "Dune", ["Frank Herbert"], "9782266233200", { owned: true, status: "READING", rating: 3 })
+    ];
+    const book = (title: string, authors: string[], isbn13: string, extra: object = {}) =>
+      ({ title, authors, source: "open-library", sourceId: `x-${title}`, isbn13, owned: true, favorite: false, status: "TO_READ", ...extra }) as never;
+    const plan = planImport({ app: "tsundoku", format: 1, exportedAt: "", followedAuthors: [], books: [
+      book("Le trone de diamant la trilogie des joyaux I", ["Eddings"], "9782266110075", { status: "READ", rating: 5, coverUrl: "https://c/x.jpg", publisher: "Pocket" }),
+      book("Dune", ["Frank Herbert"], "9782266233200", { status: "READ", rating: 5, favorite: true }),
+      book("Les Dômes de feu", ["David Eddings"], "9782266999999")
+    ] }, library);
+    expect(plan.add.map(b => b.title)).toEqual(["Les Dômes de feu"]);
+    const first = plan.merge.find(m => m.id === "a")!;
+    expect(first.state).toMatchObject({ owned: true, status: "READ", rating: 5 });
+    expect(first.edition).toMatchObject({ isbn13: "9782266110075", publisher: "Pocket", coverUrl: "https://c/x.jpg" });
+    // Dune : déjà possédé, noté 3 → la note locale reste ; statut plus avancé et favori repris
+    const dune = plan.merge.find(m => m.id === "b")!;
+    expect(dune.state).toEqual({ favorite: true, status: "READ" });
+    expect(dune.edition).toBeUndefined();
+    // un second import identique ne change plus rien
+    const again = planImport({ app: "tsundoku", format: 1, exportedAt: "", followedAuthors: [], books: [book("Dune", ["Frank Herbert"], "9782266233200", { status: "READING", rating: 3 })] }, library);
+    expect(again).toMatchObject({ add: [], merge: [], unchanged: 1 });
+  });
+});

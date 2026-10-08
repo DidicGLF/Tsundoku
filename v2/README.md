@@ -50,3 +50,13 @@ La page d'un auteur affiche sa description, ses dates, un résumé et sa photo q
 Wikipédia (français) d'abord, Open Library en secours pour les dates. Une requête par auteur, mise en
 cache 30 jours (7 jours si rien n'est trouvé). Le texte de Wikipédia est sous licence CC BY-SA : le lien
 vers l'article reste visible sous le résumé.
+
+## Sauvegarde
+
+- **Automatique (Android)** : la base SQLite est incluse dans la sauvegarde cloud d'Android
+  (`res/xml/backup_rules.xml`, `data_extraction_rules.xml`) ; les secrets (clé Google) sont exclus.
+- **Export / import manuel** (Paramètres → Sauvegarde) : fichier JSON `tsundoku-sauvegarde-AAAA-MM-JJ.json`
+  (livres avec statut, note, dates, jaquettes locales, auteurs suivis). L'import fusionne sans rien écraser :
+  un livre déjà présent (même ISBN ou même œuvre) reçoit seulement ce qui lui manque. Format versionné
+  (`format`) : une sauvegarde plus récente que l'app est refusée.
+- Un rappel s'affiche sur l'accueil si la bibliothèque (≥ 5 livres) n'a jamais été exportée ou pas depuis 30 jours.

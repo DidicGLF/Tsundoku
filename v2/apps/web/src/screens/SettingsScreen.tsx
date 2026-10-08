@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { BookSearchLanguage } from "../services/bookSearch";
 import { deleteGoogleBooksApiKey, hasGoogleBooksApiKey, saveGoogleBooksApiKey } from "../services/credentials";
+import { exportBackup, lastBackupAt, previewImport } from "../services/backup";
+import { plural } from "../lib/library-view";
+import { useLibrary } from "../state/LibraryProvider";
 import { usePreferences } from "../state/PreferencesProvider";
 
 export function SettingsScreen() {
@@ -9,6 +12,10 @@ export function SettingsScreen() {
   const [configured, setConfigured] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const { library, setLibrary, dbState } = useLibrary();
+  const [backupMessage, setBackupMessage] = useState("");
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupAt, setBackupAt] = useState(lastBackupAt());
 
   useEffect(() => {
     void hasGoogleBooksApiKey().then(setConfigured).catch(err => console.error("Credential storage initialization failed:", err));
@@ -45,8 +52,59 @@ export function SettingsScreen() {
     }
   }
 
+  async function doExport() {
+    setBackupBusy(true);
+    setBackupMessage("");
+    try {
+      const { count } = await exportBackup();
+      setBackupAt(lastBackupAt());
+      setBackupMessage(`Sauvegarde prête : ${count} ${plural(count, "livre")}.`);
+    } catch (x) {
+      setBackupMessage(x instanceof Error ? x.message : "Impossible de créer la sauvegarde.");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function doImport(file: File | undefined) {
+    if (!file) return;
+    setBackupBusy(true);
+    setBackupMessage("");
+    try {
+      const preview = await previewImport(file, library);
+      if (!preview.added && !preview.merged) { setBackupMessage("Rien à importer : ta bibliothèque contient déjà tout."); return; }
+      const ok = window.confirm(`Importer cette sauvegarde ?\n\n• ${preview.added} ${plural(preview.added, "livre")} ${plural(preview.added, "ajouté", "ajoutés")}\n• ${preview.merged} ${plural(preview.merged, "livre")} ${plural(preview.merged, "complété", "complétés")}\n\nRien n'est supprimé ni écrasé.`);
+      if (!ok) return;
+      const report = await preview.apply();
+      setLibrary(report.library);
+      setBackupMessage(`Import terminé : ${report.added} ${plural(report.added, "ajouté", "ajoutés")}, ${report.merged} ${plural(report.merged, "complété", "complétés")}.`);
+    } catch (x) {
+      setBackupMessage(x instanceof Error ? x.message : "Import impossible.");
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
   return <section className="settings-card">
     <div className="settings-section">
+      <p className="eyebrow">Mes données</p>
+      <h2>Sauvegarde</h2>
+      <p className="settings-help">
+        Sur Android, la base de Tsundoku est sauvegardée automatiquement avec les sauvegardes de ton téléphone (compte Google), sans rien faire.
+        Pour une copie à toi, ou pour changer de téléphone, exporte un fichier : tu peux l'enregistrer dans Drive ou te l'envoyer.
+      </p>
+      <p className="settings-help">{backupAt ? `Dernier export : ${new Date(backupAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}.` : "Aucun export pour l'instant."}</p>
+      <div className="credential-actions">
+        <button type="button" disabled={backupBusy || dbState !== "ready" || library.length === 0} onClick={() => void doExport()}>Exporter ma bibliothèque</button>
+        <label className="file-button secondary-file">
+          Importer une sauvegarde
+          <input type="file" accept="application/json,.json" hidden disabled={backupBusy || dbState !== "ready"}
+            onChange={event => { void doImport(event.target.files?.[0]); event.target.value = ""; }} />
+        </label>
+      </div>
+      {backupMessage && <p className="credential-message" role="status">{backupMessage}</p>}
+    </div>
+    <div className="settings-section settings-divider">
       <p className="eyebrow">Recherche de livres</p>
       <h2>Langue préférée</h2>
       <p className="settings-help">La langue sert à classer les résultats, pas à les supprimer. En français, Tsundoku combine la BnF, Open Library et Google Books.</p>
