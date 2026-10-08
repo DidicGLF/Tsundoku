@@ -83,7 +83,8 @@ export function mergeBooks(previous: BookSearchResult, next: BookSearchResult): 
  * venir d'une autre édition du même livre.
  */
 export function isExactCover(url?: string): boolean {
-  return Boolean(url && (/covers\.openlibrary\.org\/b\/isbn\//.test(url) || /\/images\/P\/[0-9Xx]{10}\./.test(url)));
+  // Une image fournie par l'utilisateur (photo de son exemplaire, `data:`) n'est jamais remplacée.
+  return Boolean(url && (/^data:image\//.test(url) || /covers\.openlibrary\.org\/b\/isbn\//.test(url) || /\/images\/P\/[0-9Xx]{10}\./.test(url)));
 }
 
 /** Entre la jaquette actuelle et une candidate : la candidate ne gagne que si elle est exacte et pas l'actuelle. */

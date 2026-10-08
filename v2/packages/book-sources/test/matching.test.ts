@@ -215,6 +215,7 @@ describe("exact covers", () => {
     expect(isExactCover(isbnCover)).toBe(true);
     expect(isExactCover(amazon)).toBe(true);
     expect(isExactCover(idCover)).toBe(false);
+    expect(isExactCover("data:image/jpeg;base64,/9j/4AAQ")).toBe(true);
     expect(isExactCover(undefined)).toBe(false);
   });
   it("lets only an exact cover replace an inexact one", () => {

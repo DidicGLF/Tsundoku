@@ -9,7 +9,7 @@ import {
 } from "../lib/library-view";
 import { getBookLanguageName } from "../services/language";
 import type { SimilarBooksQuery } from "../services/bookSearch";
-import { removeBookFromLibrary, setBookCover, updateLibraryBook, type LibraryBook } from "../services/library";
+import { removeBookFromLibrary, setBookCover, setBookEditionByIsbn, updateLibraryBook, type LibraryBook } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
 
@@ -80,9 +80,9 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
   const description = book.description?.trim();
   const longSummary = Boolean(description && description.length > SUMMARY_PREVIEW);
 
-  async function pickCover(url: string | null) {
+  async function pickCover(url: string | null, isbn?: string) {
     setPickerOpen(false);
-    try { setLibrary(await setBookCover(book.id, url)); }
+    try { setLibrary(isbn ? await setBookEditionByIsbn(book.id, isbn, url) : await setBookCover(book.id, url)); }
     catch (x) { setError(x instanceof Error ? x.message : "Impossible de changer la jaquette."); }
   }
 
@@ -98,7 +98,7 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
     </div>
 
     {error && <p className="error">{error}</p>}
-    {pickerOpen && <CoverPicker book={book} onPick={url => void pickCover(url)} onClose={() => setPickerOpen(false)} />}
+    {pickerOpen && <CoverPicker book={book} onPick={(url, isbn) => void pickCover(url, isbn)} onClose={() => setPickerOpen(false)} />}
 
     <div className="book-pills">
       <button type="button" className={book.owned ? "pill owned on" : "pill owned"} aria-pressed={book.owned} onClick={() => void patch({ owned: !book.owned })}>

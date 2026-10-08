@@ -2042,3 +2042,38 @@ select {
   line-height: 1.25;
   color: var(--text-soft);
 }
+
+.sheet-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.sheet-section > label:not(.file-button) {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+.sheet-row {
+  display: flex;
+  gap: 8px;
+}
+
+.sheet-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 700;
+  cursor: pointer;
+}

@@ -1,4 +1,4 @@
-import { canonicalAuthorDisplay, canonicalIsbn, type BookSearchResult } from "@tsundoku/book-sources";
+import { canonicalAuthorDisplay, canonicalIsbn, cleanIsbn, isbn10To13, isbn13To10, type BookSearchResult } from "@tsundoku/book-sources";
 import {
   SqliteLibraryRepository,
   runMigrations,
@@ -8,6 +8,7 @@ import {
   type LibraryBookUpdate,
 } from "@tsundoku/database";
 import { completeAuthorNames, createWorkIndex, editionOf, findLocalWork, planDuplicateMerges } from "../lib/library-view";
+import { searchBooks } from "./bookSearch";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
 let repositoryPromise: Promise<SqliteLibraryRepository> | null = null;
@@ -109,6 +110,24 @@ export async function adoptEdition(book: BookSearchResult): Promise<StoredLibrar
     if (!local.owned) await repo.update(local.id, { owned: true, newlyDiscovered: false });
     await repo.setEdition(local.id, editionOf(book));
   }
+  return repo.list();
+}
+
+/**
+ * « Mon exemplaire a cet ISBN » : la fiche prend cet ISBN (et, si une source le connaît, son éditeur,
+ * ses pages, etc.) avec la jaquette choisie.
+ */
+export async function setBookEditionByIsbn(id: string, isbn: string, coverUrl: string | null): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  const clean = cleanIsbn(isbn);
+  if (!clean) throw new Error("ISBN invalide.");
+  const found = (await searchBooks(clean, "all", "all", 0, "isbn").catch(() => []))[0];
+  const edition = found ? editionOf({ ...found, coverUrl: coverUrl ?? undefined }) : {
+    isbn13: clean.length === 13 ? clean : isbn10To13(clean),
+    isbn10: clean.length === 10 ? clean : isbn13To10(clean),
+    coverUrl
+  };
+  await repo.setEdition(id, { ...edition, coverUrl });
   return repo.list();
 }
 

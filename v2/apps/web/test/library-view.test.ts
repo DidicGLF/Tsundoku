@@ -379,3 +379,13 @@ describe("cover candidates", () => {
     expect(fallback[0].exact).toBe(true);
   });
 });
+
+describe("cover image sizing", () => {
+  it("reduces large photos to the maximum side and never enlarges small ones", async () => {
+    const { fitSize } = await import("../src/services/coverImage");
+    expect(fitSize(3000, 4000)).toEqual({ width: 480, height: 640 });
+    expect(fitSize(4000, 3000)).toEqual({ width: 640, height: 480 });
+    expect(fitSize(300, 450)).toEqual({ width: 300, height: 450 });
+    expect(fitSize(1, 5000)).toEqual({ width: 1, height: 640 });
+  });
+});
