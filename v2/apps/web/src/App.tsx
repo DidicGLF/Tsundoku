@@ -41,7 +41,7 @@ function Shell() {
 
   return <div className="shell">
     <aside>
-      <div className="brand">T <b>Tsundoku</b></div>
+      <div className="brand"><img src="/logo.png" alt="" width="40" height="40" /><b>Tsundoku</b></div>
       <nav>
         <button onClick={() => nav.reset({ name: "home" })}>Accueil</button>
         <button onClick={() => nav.reset({ name: "library" })}>Bibliothèque</button>
