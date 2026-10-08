@@ -16,7 +16,9 @@ import { booksOfAuthor, findNewWorks } from "../lib/library-view";
  * non cochées étant simplement des livres manquants (owned = false).
  */
 export async function followAuthor(group: { key: string; name: string; books: BookSearchResult[] }): Promise<{ library: LibraryBook[]; refreshedAt: string }> {
+  const start = performance.now();
   const library = await addBooksToLibrary(group.books, false);
+  console.info(`[tsundoku] suivi de ${group.name}: ${group.books.length} œuvres en ${Math.round(performance.now() - start)} ms`);
   const refreshedAt = new Date().toISOString();
   await saveFollowedAuthor(group.key, group.name, refreshedAt);
   return { library, refreshedAt };

@@ -27,6 +27,9 @@ export async function createTestAdapter(
         return rows;
       } finally { statement.free(); }
     },
+    async executeMany(statements: Array<{ sql: string; params: unknown[] }>): Promise<void> {
+      for (const { sql, params } of statements) db.run(sql, params as never[]);
+    },
     async transaction<T>(work: () => Promise<T>): Promise<T> {
       if (depth > 0) { depth++; try { return await work(); } finally { depth--; } }
       db.run("BEGIN");

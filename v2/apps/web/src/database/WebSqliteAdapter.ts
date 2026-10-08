@@ -98,6 +98,11 @@ export class WebSqliteAdapter implements SqliteAdapter {
     return result;
   }
 
+  async executeMany(statements: Array<{ sql: string; params: unknown[] }>): Promise<void> {
+    for (const { sql, params } of statements) this.db.run(sql, params as any[]);
+    if (this.transactionDepth === 0) await this.persist();
+  }
+
   async query<T extends SqliteRow = SqliteRow>(
     sql: string,
     params: unknown[] = []

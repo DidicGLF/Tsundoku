@@ -70,7 +70,7 @@ export async function addBookToLibrary(book: BookSearchResult, owned = true): Pr
 
 export async function addBooksToLibrary(books: BookSearchResult[], owned = false, newlyDiscovered = false): Promise<StoredLibraryBook[]> {
   const repo = await repository();
-  await repo.batch(async () => { for (const book of books) await repo.add(toNewBook(book, { owned, newlyDiscovered })); });
+  await repo.addMany(books.map(book => toNewBook(book, { owned, newlyDiscovered })));
   return repo.list();
 }
 

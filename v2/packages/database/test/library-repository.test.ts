@@ -96,6 +96,25 @@ describe("add / list", () => {
     })).rejects.toThrow("boom");
     expect(await repo.list()).toHaveLength(50);
   });
+  it("addMany matches add: dedup, shared authors and series, existing books untouched", async () => {
+    await repo.add({ ...dune, owned: true });
+    const inputs: NewLibraryBook[] = [
+      { ...dune, owned: false },
+      { source: "bnf", sourceId: "b1", title: "Dune 2", authors: ["Frank Herbert", "Brian Herbert"], isbn13: "9782266000001", seriesName: "Dune", seriesVolume: 2, owned: false },
+      { source: "bnf", sourceId: "b2", title: "Autre", authors: ["Brian Herbert"], owned: false },
+      { source: "bnf", sourceId: "b2", title: "Autre (bis)", authors: ["Brian Herbert"], owned: false }
+    ];
+    await repo.addMany(inputs);
+    const list = await repo.list();
+    expect(list).toHaveLength(3);
+    const dune2 = list.find(b => b.title === "Dune 2")!;
+    expect(dune2.authors).toEqual(["Frank Herbert", "Brian Herbert"]);
+    expect(dune2.seriesName).toBe("Dune");
+    expect(dune2.owned).toBe(false);
+    expect(list.find(b => b.title === "Dune")!.owned).toBe(true);
+    expect((await db.query("SELECT id FROM authors")).length).toBe(2);
+    expect((await db.query("SELECT id FROM series")).length).toBe(1);
+  });
   it("marks a tracked book as owned when added again as owned, but not when re-imported", async () => {
     await repo.add({ ...dune, owned: false, newlyDiscovered: true });
     await repo.add({ ...dune, owned: false, newlyDiscovered: true });

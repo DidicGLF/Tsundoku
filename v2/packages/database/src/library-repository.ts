@@ -89,6 +89,114 @@ export class SqliteLibraryRepository {
     return this.db.transaction(work);
   }
 
+  /**
+   * Adds many books at once. Existing data is read once, new books are written with
+   * a single native call; books already tracked (or soft-deleted) go through `add`.
+   */
+  async addMany(inputs: NewLibraryBook[]): Promise<void> {
+    if (!inputs.length) return;
+    await this.db.transaction(async () => {
+      const known = new Set<string>();
+      for (const row of await this.db.query<{ isbn13: string | null; isbn10: string | null; source: string | null; source_id: string | null }>(
+        `SELECT e.isbn13, e.isbn10, b.source, b.source_id FROM user_books ub
+         JOIN books b ON b.id = ub.book_id LEFT JOIN editions e ON e.id = ub.edition_id WHERE ub.user_id = ?`, [this.userId]
+      )) {
+        if (row.isbn13) known.add(`i:${row.isbn13}`);
+        if (row.isbn10) known.add(`i:${row.isbn10}`);
+        known.add(`s:${row.source}:${row.source_id}`);
+      }
+      const authors = new Map<string, string>();
+      for (const row of await this.db.query<{ id: string; normalized_name: string }>("SELECT id, normalized_name FROM authors")) {
+        authors.set(row.normalized_name, row.id);
+      }
+      const series = new Map<string, string>();
+      for (const row of await this.db.query<{ id: string; normalized_name: string }>("SELECT id, normalized_name FROM series")) {
+        series.set(row.normalized_name, row.id);
+      }
+
+      let pending: Array<{ sql: string; params: unknown[] }> = [];
+      const flush = async () => { const batch = pending; pending = []; await this.db.executeMany(batch); };
+
+      for (const input of inputs) {
+        const keys = [input.isbn13, input.isbn10].filter(Boolean).map(isbn => `i:${isbn}`);
+        keys.push(`s:${input.source}:${input.sourceId}`);
+        if (keys.some(key => known.has(key))) {
+          await flush();
+          await this.add(input);
+          keys.forEach(key => known.add(key));
+          continue;
+        }
+        keys.forEach(key => known.add(key));
+
+        const owned = (input.owned ?? true) ? 1 : 0;
+        const now = new Date().toISOString();
+        const bookId = crypto.randomUUID();
+        const editionId = crypto.randomUUID();
+        pending.push({
+          sql: `INSERT INTO books
+                (id,title,description,language,cover_url,first_published_year,source,source_id,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?)`,
+          params: [bookId, input.title, input.description ?? null, input.language ?? null, input.coverUrl ?? null,
+                   input.publishedYear ?? null, input.source, input.sourceId, now, now]
+        }, {
+          sql: `INSERT INTO editions
+                (id,book_id,title,publisher,published_year,isbn10,isbn13,page_count,language,cover_url,created_at,updated_at)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+          params: [editionId, bookId, input.title, input.publisher ?? null, input.publishedYear ?? null,
+                   input.isbn10 ?? null, input.isbn13 ?? null, input.pageCount ?? null, input.language ?? null,
+                   input.coverUrl ?? null, now, now]
+        });
+
+        let position = 0;
+        for (const rawName of input.authors) {
+          const name = rawName.trim();
+          if (!name) continue;
+          const normalized = normalizeName(name);
+          let authorId = authors.get(normalized);
+          if (!authorId) {
+            authorId = crypto.randomUUID();
+            authors.set(normalized, authorId);
+            pending.push({
+              sql: "INSERT INTO authors(id,name,normalized_name,created_at,updated_at) VALUES(?,?,?,?,?)",
+              params: [authorId, name, normalized, now, now]
+            });
+          }
+          pending.push({
+            sql: "INSERT OR IGNORE INTO book_authors(book_id,author_id,position) VALUES(?,?,?)",
+            params: [bookId, authorId, position++]
+          });
+        }
+
+        pending.push({
+          sql: `INSERT INTO user_books
+                (id,user_id,book_id,edition_id,status,owned,favorite,newly_discovered,progress_total,created_at,updated_at)
+                VALUES(?,?,?,?,'TO_READ',?,0,?,?,?,?)`,
+          params: [crypto.randomUUID(), this.userId, bookId, editionId, owned, input.newlyDiscovered ? 1 : 0,
+                   input.pageCount ?? null, now, now]
+        });
+
+        const seriesName = input.seriesName?.trim();
+        if (seriesName) {
+          const normalized = normalizeName(seriesName);
+          let seriesId = series.get(normalized);
+          if (!seriesId) {
+            seriesId = crypto.randomUUID();
+            series.set(normalized, seriesId);
+            pending.push({
+              sql: "INSERT INTO series(id,name,normalized_name,created_at,updated_at) VALUES(?,?,?,?,?)",
+              params: [seriesId, seriesName, normalized, now, now]
+            });
+          }
+          pending.push({
+            sql: "INSERT INTO book_series(book_id,series_id,volume_number,created_at,updated_at) VALUES(?,?,?,?,?)",
+            params: [bookId, seriesId, input.seriesVolume ?? null, now, now]
+          });
+        }
+      }
+      await flush();
+    });
+  }
+
   async add(input: NewLibraryBook): Promise<void> {
     await this.db.transaction(async () => {
       const owned = (input.owned ?? true) ? 1 : 0;

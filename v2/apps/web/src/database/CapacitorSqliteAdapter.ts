@@ -36,6 +36,13 @@ export class CapacitorSqliteAdapter implements SqliteAdapter {
     };
   }
 
+  async executeMany(statements: Array<{ sql: string; params: unknown[] }>): Promise<void> {
+    if (!statements.length) return;
+    const set = statements.map(({ sql, params }) => ({ statement: sql, values: params as never[] }));
+    // Outside our own transaction the plugin wraps the whole set in one.
+    await this.db.executeSet(set, this.transactionDepth === 0);
+  }
+
   async query<T extends SqliteRow = SqliteRow>(sql: string, params: unknown[] = []): Promise<T[]> {
     const result = await this.db.query(sql, params);
     return (result.values ?? []) as T[];
