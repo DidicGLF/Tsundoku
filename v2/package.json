@@ -7,9 +7,11 @@
     "dev": "pnpm --filter @tsundoku/web dev",
     "build": "pnpm --filter @tsundoku/web build",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "devDependencies": {
+    "jsdom": "^30.1.2",
     "typescript": "^5.7.2",
     "vitest": "^2"
   }

@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, collapseToWorks, isSameWork, type BookSearchResult } from "@tsundoku/book-sources";
 import { SearchCard } from "../components/BookCards";
 import type { BookSearch } from "../hooks/useBookSearch";
 import { isInLibrary, plural } from "../lib/library-view";
 import { followAuthor } from "../services/authorLibrary";
 import { getBookLanguageGroup, type BookSearchField, type SearchProvider } from "../services/bookSearch";
+import { hasGoogleBooksApiKey } from "../services/credentials";
 import { addBookToLibrary } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
@@ -18,7 +19,12 @@ export function SearchScreen({ search }: { search: BookSearch }) {
   const { preferredLanguage } = usePreferences();
   const [followBusy, setFollowBusy] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [googleKeyKnown, setGoogleKeyKnown] = useState<boolean | null>(null);
   const { results, field, activeLanguage } = search;
+
+  useEffect(() => {
+    void hasGoogleBooksApiKey().then(setGoogleKeyKnown, () => setGoogleKeyKnown(null));
+  }, []);
 
   const isAuthorSearch = field === "author" && results.length > 0;
   const ready = dbState === "ready";
@@ -67,6 +73,9 @@ export function SearchScreen({ search }: { search: BookSearch }) {
     ? results
     : results.filter(book => getBookLanguageGroup(book, activeLanguage) === "preferred");
   const hiddenCount = results.length - visible.length;
+  // Sans clé Google, les éditions françaises récentes n'ont souvent aucune jaquette.
+  const missingCovers = visible.filter(book => !book.coverUrl).length;
+  const suggestGoogleKey = googleKeyKnown === false && !search.busy && missingCovers >= 5;
 
   return <>
     <form className="search-form" onSubmit={search.submit}>
@@ -80,6 +89,10 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       <button disabled={search.busy}>{search.busy ? "Recherche…" : "Rechercher"}</button>
     </form>
     {error && <p className="error">{error}</p>}
+    {suggestGoogleKey && <p className="settings-help">
+      {missingCovers} résultats sans jaquette. Une clé Google Books gratuite en retrouve beaucoup plus, surtout en français.{" "}
+      <button type="button" className="text-button" onClick={() => nav.reset({ name: "settings" })}>Ouvrir les paramètres</button>
+    </p>}
     {search.noPreferredResults && <section className="search-fallback"><p>Aucun résultat dans la langue préférée.</p><button type="button" onClick={() => void search.searchAllLanguages()}>Afficher toutes les langues</button></section>}
 
     {isAuthorSearch ? <>

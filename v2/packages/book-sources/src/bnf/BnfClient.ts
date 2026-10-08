@@ -1,5 +1,6 @@
 import type { BookMetadata, BookSearchField, BookSearchLanguage, BookSearchResult, BookSource } from "../types";
 import { canonicalAuthorDisplay } from "../authors";
+import { getText } from "../http";
 
 const fieldCriterion: Record<BookSearchField, string> = {
   all: "bib.anywhere",
@@ -7,6 +8,8 @@ const fieldCriterion: Record<BookSearchField, string> = {
   author: "bib.author",
   isbn: "bib.isbn"
 };
+
+const PRINTED_TEXT = 'bib.doctype any "a"';
 
 function quote(value: string): string {
   return `"${value.replace(/["\\]/g, " ").trim()}"`;
@@ -72,9 +75,8 @@ export class BnfClient implements BookSource {
       startRecord: String(Math.max(0, offset) + 1),
       maximumRecords: String(maximumRecords)
     });
-    const response = await fetch(`${this.base}?${params}`, { headers: { Accept: "application/xml,text/xml" } });
-    if (!response.ok) throw new Error(`BnF HTTP ${response.status}`);
-    const xml = new DOMParser().parseFromString(await response.text(), "application/xml");
+    const text = await getText(`${this.base}?${params}`, { headers: { Accept: "application/xml,text/xml" } });
+    const xml = new DOMParser().parseFromString(text, "application/xml");
     if (xml.getElementsByTagName("parsererror").length) throw new Error("Réponse XML BnF invalide.");
     return Array.from(xml.getElementsByTagNameNS("*", "record")).flatMap(record => {
       const mapped = mapRecord(record);
@@ -87,9 +89,12 @@ export class BnfClient implements BookSource {
     if (!query) return [];
     const criterion = fieldCriterion[field];
     const relation = field === "isbn" ? "adj" : "all";
+    // « a » = texte imprimé : écarte disques, vidéos, cartes… Les requêtes sont plusieurs
+    // fois plus rapides (la BnF renvoie beaucoup moins de notices) et le bruit disparaît.
+    const printedOnly = field === "isbn" ? "" : ` and ${PRINTED_TEXT}`;
     // La bibliographie d'un auteur bénéficie du maximum SRU autorisé ici :
     // moins d'allers-retours réseau, particulièrement sensible sur Android.
-    return this.request(`${criterion} ${relation} ${quote(query)}`, offset, field === "author" ? 100 : 40);
+    return this.request(`${criterion} ${relation} ${quote(query)}${printedOnly}`, offset, field === "author" ? 100 : 40);
   }
 
   async getBook(id: string): Promise<BookMetadata> {

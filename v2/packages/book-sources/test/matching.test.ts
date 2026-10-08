@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalIsbn, cleanIsbn, collapseToWorks, isbn10To13, isSameEdition, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
+import { canonicalIsbn, cleanCatalogTitle, cleanIsbn, collapseToWorks, isConfidentCoverMatch, isbn10To13, isSameEdition, isSameWork, mergeSearchResults, normalizeText } from "../src/matching";
 import type { BookSearchResult } from "../src/types";
 
 const book = (over: Partial<BookSearchResult> = {}): BookSearchResult => ({
@@ -87,5 +87,30 @@ describe("non-latin scripts", () => {
       book({ title: "風の谷のナウシカ", authors: ["宮崎駿"] })
     ]);
     expect(result).toHaveLength(2);
+  });
+});
+
+describe("cleanCatalogTitle", () => {
+  it("keeps the main title of noisy catalogue records", () => {
+    expect(cleanCatalogTitle("Dune ; (suivi de) Le Messie de Dune : roman /")).toBe("Dune");
+    expect(cleanCatalogTitle("Avant Dune / Brian Herbert et Kevin J. Anderson")).toBe("Avant Dune");
+    expect(cleanCatalogTitle("Dune (Éd. revue et corrigée)")).toBe("Dune");
+    expect(cleanCatalogTitle("Le Seigneur des anneaux. 1, La Communauté de l'anneau")).toBe("Le Seigneur des anneaux. 1, La Communauté de l'anneau");
+    expect(cleanCatalogTitle("  ")).toBe("");
+  });
+});
+
+describe("isConfidentCoverMatch", () => {
+  const wanted = { title: "Après Dune / Brian Herbert", authors: ["Herbert, Brian (1947-....). Auteur du texte"] };
+  it("accepts the same title by the same author, whatever the spelling", () => {
+    expect(isConfidentCoverMatch(wanted, { title: "Après Dune", author_name: ["Brian Herbert", "Kevin J. Anderson"] })).toBe(true);
+  });
+  it("rejects a fuzzy hit from another book or another author", () => {
+    expect(isConfidentCoverMatch(wanted, { title: "Les trois Mousquetaires", author_name: ["Alexandre Dumas"] })).toBe(false);
+    expect(isConfidentCoverMatch(wanted, { title: "Après Dune", author_name: ["Frank Smith"] })).toBe(false);
+    expect(isConfidentCoverMatch(wanted, { title: "Avant Dune", author_name: ["Brian Herbert"] })).toBe(false);
+  });
+  it("accepts a title match when the wanted book has no author", () => {
+    expect(isConfidentCoverMatch({ title: "Dune", authors: [] }, { title: "Dune", author_name: ["Frank Herbert"] })).toBe(true);
   });
 });

@@ -117,3 +117,26 @@ export function collapseToWorks(results: BookSearchResult[]): BookSearchResult[]
   }
   return [...works.values()].sort((a, b) => (b.publishedYear ?? -1) - (a.publishedYear ?? -1) || a.title.localeCompare(b.title, "fr"));
 }
+
+/**
+ * Catalogue titles carry cataloguing noise: "Dune ; (suivi de) Le Messie de Dune : roman /",
+ * "Avant Dune / Brian Herbert". Keeps the main title only, so it can be matched elsewhere.
+ */
+export function cleanCatalogTitle(title: string): string {
+  const main = title.split(/\s[/:;]\s|\s\(|\s*\[/)[0];
+  return main.replace(/[\s.,;:/]+$/g, "").trim();
+}
+
+/**
+ * Strict match used to borrow a cover from another catalogue: same main title and a
+ * shared author surname. Fuzzy matches are worse than no cover ("Après Dune" is not
+ * "Les trois Mousquetaires").
+ */
+export function isConfidentCoverMatch(wanted: BookIdentity, candidate: { title?: string; author_name?: string[] }): boolean {
+  const title = normalizeText(cleanCatalogTitle(wanted.title));
+  if (!title || title !== normalizeText(cleanCatalogTitle(candidate.title ?? ""))) return false;
+  const wantedAuthor = canonicalAuthorIdentity(wanted.authors[0] ?? "");
+  if (!wantedAuthor) return true;
+  const surname = wantedAuthor.split(" ").pop() ?? wantedAuthor;
+  return (candidate.author_name ?? []).some(name => canonicalAuthorIdentity(name).split(" ").includes(surname));
+}

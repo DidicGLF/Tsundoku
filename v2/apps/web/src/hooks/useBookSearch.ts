@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useRef, useState, type FormEvent } from "react";
 import type { BookSearchResult } from "@tsundoku/book-sources";
 import {
   enrichSearchResults, mergeSearchResults, searchBooks, searchCompleteAuthorBibliography,
@@ -23,31 +23,44 @@ export function useBookSearch() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const enrichInBackground = useCallback((found: BookSearchResult[], language: BookSearchLanguage) => {
-    // L'enrichissement (jaquettes/métadonnées) ne doit jamais bloquer la recherche.
-    void enrichSearchResults(found, language)
-      .then(enriched => setResults(current => mergeSearchResults([...current, ...enriched])))
-      .catch(() => undefined);
+  // Chaque recherche a un numéro : les réponses tardives d'une recherche abandonnée sont ignorées.
+  const currentSearch = useRef(0);
+
+  const enrichInBackground = useCallback((found: BookSearchResult[], language: BookSearchLanguage, searchId: number) => {
+    // L'enrichissement (jaquettes/métadonnées) ne doit jamais bloquer la recherche :
+    // les jaquettes apparaissent au fil de l'eau, étape par étape.
+    const merge = (partial: BookSearchResult[]) => {
+      if (searchId === currentSearch.current) setResults(current => mergeSearchResults([...current, ...partial]));
+    };
+    void enrichSearchResults(found, language, merge).then(merge).catch(() => undefined);
   }, []);
 
   const run = useCallback(async (language: BookSearchLanguage, showOthers: boolean) => {
+    const searchId = ++currentSearch.current;
+    const isCurrent = () => searchId === currentSearch.current;
     setBusy(true);
     setError("");
+    setResults([]);
+    setShowOtherLanguages(showOthers);
+    setCanLoadMore(false);
+    setActiveLanguage(language);
+    setNoPreferredResults(false);
+    // Les résultats s'affichent dès que la première source répond.
+    const progress = (partial: BookSearchResult[]) => { if (isCurrent()) setResults(partial); };
     try {
       const found = field === "author"
-        ? await searchCompleteAuthorBibliography(q, provider, language)
-        : await searchBooks(q, provider, language, 0, field);
+        ? await searchCompleteAuthorBibliography(q, provider, language, false, progress)
+        : await searchBooks(q, provider, language, 0, field, progress);
+      if (!isCurrent()) return;
       setResults(found);
-      setShowOtherLanguages(showOthers);
       setOffset(PAGE_SIZE);
       setCanLoadMore(field !== "author" && found.length > 0);
-      setActiveLanguage(language);
       setNoPreferredResults(!showOthers && language !== "all" && found.length === 0);
-      enrichInBackground(found, language);
+      enrichInBackground(found, language, searchId);
     } catch (x) {
-      setError(x instanceof Error ? x.message : "Recherche impossible");
+      if (isCurrent()) setError(x instanceof Error ? x.message : "Recherche impossible");
     } finally {
-      setBusy(false);
+      if (isCurrent()) setBusy(false);
     }
   }, [q, provider, field, enrichInBackground]);
 
@@ -59,11 +72,13 @@ export function useBookSearch() {
     setBusy(true);
     setError("");
     try {
+      const searchId = currentSearch.current;
       const found = await searchBooks(q, provider, activeLanguage, offset, field);
+      if (searchId !== currentSearch.current) return;
       setResults(current => mergeSearchResults([...current, ...found]));
       setOffset(current => current + PAGE_SIZE);
       setCanLoadMore(found.length > 0);
-      enrichInBackground(found, activeLanguage);
+      enrichInBackground(found, activeLanguage, searchId);
     } catch (x) {
       setError(x instanceof Error ? x.message : "Recherche impossible");
     } finally {

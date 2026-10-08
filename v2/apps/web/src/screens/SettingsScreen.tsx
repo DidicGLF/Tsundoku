@@ -75,6 +75,10 @@ export function SettingsScreen() {
         La clé est propre à cet appareil. Elle n'est enregistrée ni dans SQLite, ni dans les données synchronisables.
         Sur Android, elle est conservée dans le stockage sécurisé du système.
       </p>
+      <p className="settings-help">
+        Sans clé, les jaquettes viennent surtout d'Open Library et beaucoup d'éditions françaises n'en ont pas.
+        Une clé gratuite s'obtient dans la console Google Cloud : activer « Books API », puis Identifiants → Créer une clé API.
+      </p>
       <form className="credential-form" onSubmit={save}>
         <label>
           {configured ? "Remplacer la clé API" : "Clé API Google Books"}
