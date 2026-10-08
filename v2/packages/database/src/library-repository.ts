@@ -96,14 +96,25 @@ export class SqliteLibraryRepository {
   async addMany(inputs: NewLibraryBook[]): Promise<void> {
     if (!inputs.length) return;
     await this.db.transaction(async () => {
-      const known = new Set<string>();
-      for (const row of await this.db.query<{ isbn13: string | null; isbn10: string | null; source: string | null; source_id: string | null }>(
-        `SELECT e.isbn13, e.isbn10, b.source, b.source_id FROM user_books ub
+      interface Known { id: string; bookId: string; owned: boolean; deleted: boolean }
+      const known = new Map<string, Known>();
+      const remember = (keys: string[], entry: Known) => {
+        for (const key of keys) {
+          const previous = known.get(key);
+          // A live copy always wins over a soft-deleted one.
+          if (!previous || (previous.deleted && !entry.deleted)) known.set(key, entry);
+        }
+      };
+      for (const row of await this.db.query<{
+        id: string; book_id: string; owned: number; deleted_at: string | null;
+        isbn13: string | null; isbn10: string | null; source: string | null; source_id: string | null
+      }>(
+        `SELECT ub.id, ub.book_id, ub.owned, ub.deleted_at, e.isbn13, e.isbn10, b.source, b.source_id FROM user_books ub
          JOIN books b ON b.id = ub.book_id LEFT JOIN editions e ON e.id = ub.edition_id WHERE ub.user_id = ?`, [this.userId]
       )) {
-        if (row.isbn13) known.add(`i:${row.isbn13}`);
-        if (row.isbn10) known.add(`i:${row.isbn10}`);
-        known.add(`s:${row.source}:${row.source_id}`);
+        const keys = [row.isbn13, row.isbn10].filter(Boolean).map(isbn => `i:${isbn}`);
+        keys.push(`s:${row.source}:${row.source_id}`);
+        remember(keys, { id: row.id, bookId: row.book_id, owned: Boolean(Number(row.owned)), deleted: row.deleted_at != null });
       }
       const authors = new Map<string, string>();
       for (const row of await this.db.query<{ id: string; normalized_name: string }>("SELECT id, normalized_name FROM authors")) {
@@ -120,13 +131,34 @@ export class SqliteLibraryRepository {
       for (const input of inputs) {
         const keys = [input.isbn13, input.isbn10].filter(Boolean).map(isbn => `i:${isbn}`);
         keys.push(`s:${input.source}:${input.sourceId}`);
-        if (keys.some(key => known.has(key))) {
-          await flush();
-          await this.add(input);
-          keys.forEach(key => known.add(key));
+        const entry = keys.map(key => known.get(key)).find(Boolean);
+        if (entry) {
+          const at = new Date().toISOString();
+          if (entry.deleted) {
+            pending.push({
+              sql: `UPDATE user_books SET
+                      status = 'TO_READ', owned = ?, favorite = 0, newly_discovered = ?,
+                      progress_value = NULL, progress_total = ?, started_at = NULL, finished_at = NULL,
+                      updated_at = ?, deleted_at = NULL
+                    WHERE id = ?`,
+              params: [(input.owned ?? true) ? 1 : 0, input.newlyDiscovered ? 1 : 0, input.pageCount ?? null, at, entry.id]
+            });
+            entry.deleted = false;
+            entry.owned = (input.owned ?? true);
+          } else if (input.owned === true && !entry.owned) {
+            pending.push({
+              sql: "UPDATE user_books SET owned = 1, newly_discovered = 0, updated_at = ? WHERE id = ? AND owned = 0",
+              params: [at, entry.id]
+            });
+            entry.owned = true;
+          }
+          if (input.seriesName) {
+            await flush();
+            await this.applySeries(entry.bookId, input.seriesName, input.seriesVolume, false);
+          }
+          remember(keys, entry);
           continue;
         }
-        keys.forEach(key => known.add(key));
 
         const owned = (input.owned ?? true) ? 1 : 0;
         const now = new Date().toISOString();
@@ -167,11 +199,13 @@ export class SqliteLibraryRepository {
           });
         }
 
+        const userBookId = crypto.randomUUID();
+        remember(keys, { id: userBookId, bookId, owned: owned === 1, deleted: false });
         pending.push({
           sql: `INSERT INTO user_books
                 (id,user_id,book_id,edition_id,status,owned,favorite,newly_discovered,progress_total,created_at,updated_at)
                 VALUES(?,?,?,?,'TO_READ',?,0,?,?,?,?)`,
-          params: [crypto.randomUUID(), this.userId, bookId, editionId, owned, input.newlyDiscovered ? 1 : 0,
+          params: [userBookId, this.userId, bookId, editionId, owned, input.newlyDiscovered ? 1 : 0,
                    input.pageCount ?? null, now, now]
         });
 

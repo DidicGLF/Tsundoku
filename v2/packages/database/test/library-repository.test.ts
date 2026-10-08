@@ -115,6 +115,21 @@ describe("add / list", () => {
     expect((await db.query("SELECT id FROM authors")).length).toBe(2);
     expect((await db.query("SELECT id FROM series")).length).toBe(1);
   });
+  it("addMany restores soft-deleted books and upgrades owned ones like add", async () => {
+    await repo.add({ ...dune, owned: false });
+    const [stored] = await repo.list();
+    await repo.remove(stored.id);
+    expect(await repo.list()).toHaveLength(0);
+    await repo.addMany([{ ...dune, owned: false, newlyDiscovered: true }]);
+    let list = await repo.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].newlyDiscovered).toBe(true);
+    expect(list[0].owned).toBe(false);
+    await repo.addMany([{ ...dune, owned: true }, { ...dune, owned: false }]);
+    list = await repo.list();
+    expect(list).toHaveLength(1);
+    expect(list[0].owned).toBe(true);
+  });
   it("marks a tracked book as owned when added again as owned, but not when re-imported", async () => {
     await repo.add({ ...dune, owned: false, newlyDiscovered: true });
     await repo.add({ ...dune, owned: false, newlyDiscovered: true });
