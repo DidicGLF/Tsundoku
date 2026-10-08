@@ -1634,6 +1634,7 @@ select {
 .author-head {
   display: flex;
   align-items: center;
+  min-width: 0;
   gap: 14px;
   margin-top: 4px;
 }
@@ -1651,12 +1652,12 @@ select {
 }
 
 .monogram {
-  flex: 0 0 60px;
-  width: 60px;
-  height: 60px;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 96px;
   display: grid;
   place-items: center;
-  border-radius: 30px;
+  border-radius: 14px;
   background: var(--sidebar);
   color: var(--bg);
   font-family: var(--font-display);
@@ -1859,12 +1860,17 @@ select {
 }
 
 .author-photo {
-  flex: 0 0 60px;
-  width: 60px;
-  height: 60px;
-  border-radius: 30px;
+  flex: 0 0 auto;
+  width: auto;
+  height: 96px;
+  max-width: 124px;
+  border-radius: 14px;
+  /* hauteur fixe, ratio naturel : un portrait reste un portrait, un paysage est limité en largeur ;
+     le haut de l'image est conservé, là où se trouve le visage */
   object-fit: cover;
+  object-position: center top;
   background: var(--surface-2);
+  box-shadow: 0 6px 14px var(--shadow-hover);
 }
 
 .author-head .author-tagline {
