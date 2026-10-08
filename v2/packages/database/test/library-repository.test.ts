@@ -39,6 +39,24 @@ describe("migrations", () => {
   });
 });
 
+describe("upgrading from schema version 1", () => {
+  it("keeps the user's books, adds the rating column and drops the reading journal", async () => {
+    const old = await createTestAdapter();
+    await runMigrations(old, 1);
+    const now = "2026-01-01T00:00:00Z";
+    await old.execute("INSERT INTO books(id,title,source,source_id,created_at,updated_at) VALUES('b1','Dune','bnf','x',?,?)", [now, now]);
+    await old.execute("INSERT INTO user_books(id,user_id,book_id,created_at,updated_at) VALUES('u1','local','b1',?,?)", [now, now]);
+    await old.execute("INSERT INTO reading_sessions(id,user_book_id,started_at,duration_minutes,created_at,updated_at) VALUES('s1','u1',?,30,?,?)", [now, now, now]);
+    await runMigrations(old);
+    const upgraded = new SqliteLibraryRepository(old);
+    expect(await upgraded.list()).toHaveLength(1);
+    await upgraded.update("u1", { rating: 5 });
+    expect((await upgraded.list())[0].rating).toBe(5);
+    const tables = await old.query<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'");
+    expect(tables.map(t => t.name)).not.toContain("reading_sessions");
+  });
+});
+
 describe("migrating a pre-release database with foreign keys enforced", () => {
   it("drops parent and child tables even when PRAGMA foreign_keys cannot be switched off", async () => {
     const old = await createTestAdapter({ ignoreForeignKeysPragma: true });
@@ -197,21 +215,26 @@ describe("refreshMetadata", () => {
   });
 });
 
-describe("reading sessions", () => {
-  it("records a session, moves the book to READING and updates progress", async () => {
+describe("rating", () => {
+  it("stores 1-5 stars, keeps them across other updates and clears them with null", async () => {
     await repo.add(dune);
     const [{ id }] = await repo.list();
-    await repo.addReadingSession(id, { startedAt: "2026-01-01T10:00", durationMinutes: 45, endProgress: 120 });
-    expect((await repo.list())[0]).toMatchObject({ status: "READING", progressValue: 120 });
-    const [session] = await repo.listReadingSessions(id);
-    expect(session).toMatchObject({ durationMinutes: 45, endProgress: 120 });
+    expect((await repo.list())[0].rating).toBeUndefined();
+    await repo.update(id, { status: "READ", rating: 4 });
+    expect((await repo.list())[0]).toMatchObject({ status: "READ", rating: 4 });
+    await repo.update(id, { favorite: true });
+    expect((await repo.list())[0].rating).toBe(4);
+    await repo.update(id, { rating: null });
+    expect((await repo.list())[0].rating).toBeUndefined();
   });
-  it("validates duration and progress", async () => {
+  it("refuses ratings outside 1-5", async () => {
     await repo.add(dune);
     const [{ id }] = await repo.list();
-    await expect(repo.addReadingSession(id, { startedAt: "x", durationMinutes: 0 })).rejects.toThrow("durée");
-    await expect(repo.addReadingSession(id, { startedAt: "x", durationMinutes: 5, endProgress: 9999 })).rejects.toThrow("dépasser");
-    await expect(repo.addReadingSession(id, { startedAt: "x", durationMinutes: 5, endProgress: -1 })).rejects.toThrow("négative");
+    for (const bad of [0, 6, 2.5]) await expect(repo.update(id, { rating: bad })).rejects.toThrow("1 à 5");
+  });
+  it("no longer has a reading journal", async () => {
+    const tables = await db.query<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'");
+    expect(tables.map(t => t.name)).not.toContain("reading_sessions");
   });
 });
 

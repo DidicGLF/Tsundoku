@@ -171,11 +171,6 @@ export function findNewWorks(remote: BookSearchResult[], current: LibraryBook[])
 
 /* ---- Formatting ---- */
 
-export function localDateTimeValue(date = new Date()): string {
-  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 16);
-}
-
 const dateTimeFormat = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
 
 export function formatDateTime(value: string): string {
@@ -188,4 +183,47 @@ export function formatRefreshDate(value?: string): string {
 
 export function plural(count: number, one: string, many = `${one}s`): string {
   return count > 1 ? many : one;
+}
+
+/* ---- Page du livre : progression, note, dates ---- */
+
+/** Avancement saisi en pourcentage : les pages sont déduites du nombre de pages connu, sinon on garde 100 comme total. */
+export function progressUpdateFor(book: { pageCount?: number; progressTotal?: number }, percent: number): { progressValue: number; progressTotal: number } {
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+  const total = book.progressTotal || book.pageCount || 100;
+  return { progressValue: Math.round((total * pct) / 100), progressTotal: total };
+}
+
+/** Pourcentage lu (0 si rien n'est renseigné). */
+export function readPercent(book: LibraryBook): number {
+  const pct = progressPercent(book);
+  return pct < 0 ? 0 : Math.round(pct);
+}
+
+/** Page atteinte, uniquement quand le nombre de pages de l'édition est connu. */
+export function pageReached(book: { pageCount?: number }, percent: number): number | undefined {
+  return book.pageCount ? Math.round((book.pageCount * percent) / 100) : undefined;
+}
+
+export const ratingLabels = ["Pas encore noté", "Bof", "Passable", "Bien", "Très bien", "Coup de cœur"] as const;
+
+const dayFormat = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long" });
+
+function dayCount(from: string, to: string): number {
+  return Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86400000));
+}
+
+/** Ligne de dates sous le statut : dans la pile depuis…, commencé le…, terminé le…. */
+export function bookDatesLine(book: Pick<LibraryBook, "status" | "addedAt" | "startedAt" | "finishedAt">, now = new Date()): string {
+  const day = (value: string) => dayFormat.format(new Date(value));
+  if (book.status === "READ" && book.startedAt && book.finishedAt) {
+    const days = dayCount(book.startedAt, book.finishedAt);
+    return `Commencé le ${day(book.startedAt)} · terminé le ${day(book.finishedAt)} · ${days} ${plural(days, "jour")}`;
+  }
+  if (book.status === "READ" && book.finishedAt) return `Terminé le ${day(book.finishedAt)}`;
+  if (book.status === "READING" && book.startedAt) {
+    const days = dayCount(book.startedAt, now.toISOString());
+    return `Commencé le ${day(book.startedAt)} · ${days} ${plural(days, "jour")} de lecture`;
+  }
+  return `Dans ma pile depuis le ${day(book.addedAt)}`;
 }

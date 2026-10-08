@@ -35,3 +35,16 @@ export function rankByLanguage(books: BookSearchResult[], language: BookSearchLa
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .map(item => item.book);
 }
+
+const languageNames = new Intl.DisplayNames(["fr"], { type: "language" });
+
+/** Nom de la langue en français (« Français »), ou le code brut si on ne la reconnaît pas. */
+export function getBookLanguageName(book: BookSearchResult): string {
+  const code = getBookLanguageLabel(book);
+  if (code === "?") return "";
+  try {
+    const name = languageNames.of(code.toLowerCase());
+    if (name && name.toLowerCase() !== code.toLowerCase()) return name.charAt(0).toUpperCase() + name.slice(1);
+  } catch { /* code non reconnu */ }
+  return book.language?.trim() ?? "";
+}

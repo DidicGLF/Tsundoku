@@ -6,8 +6,6 @@ import {
   type NewLibraryBook,
   type StoredLibraryBook,
   type LibraryBookUpdate,
-  type ReadingSession,
-  type NewReadingSession
 } from "@tsundoku/database";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
 
@@ -103,16 +101,6 @@ export async function updateLibraryBook(
   return repo.list();
 }
 
-export async function getReadingSessions(bookId: string): Promise<ReadingSession[]> {
-  return (await repository()).listReadingSessions(bookId);
-}
-
-export async function addReadingSession(bookId: string, session: NewReadingSession): Promise<{ library: StoredLibraryBook[]; sessions: ReadingSession[] }> {
-  const repo = await repository();
-  await repo.addReadingSession(bookId, session);
-  return { library: await repo.list(), sessions: await repo.listReadingSessions(bookId) };
-}
-
 export type FollowedAuthorInfo = FollowedAuthor;
 
 export async function getFollowedAuthor(authorKey: string): Promise<FollowedAuthorInfo | null> {
@@ -134,4 +122,4 @@ export async function clearNewlyDiscoveredBooks(ids: string[]): Promise<StoredLi
 }
 
 export type LibraryBook = StoredLibraryBook;
-export type { LibraryBookUpdate, ReadingSession, NewReadingSession };
+export type { LibraryBookUpdate };

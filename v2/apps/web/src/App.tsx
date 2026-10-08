@@ -63,7 +63,7 @@ function Shell() {
     </aside>
 
     <main>
-      <header>Tsundoku V2<h1>{title}</h1></header>
+      {route.name !== "detail" && route.name !== "author" && <header>Tsundoku V2<h1>{title}</h1></header>}
 
       {dbState === "error" && <section className="hero"><h2>SQLite n'a pas pu démarrer</h2><p className="error">{dbError}</p></section>}
 

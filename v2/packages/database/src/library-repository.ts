@@ -1,7 +1,6 @@
 import type { SqliteAdapter } from "./adapter";
 import type {
-  BookSourceName, FollowedAuthor, LibraryBookUpdate, NewLibraryBook, NewReadingSession,
-  ReadingSession, ReadingStatus, StoredLibraryBook
+  BookSourceName, FollowedAuthor, LibraryBookUpdate, NewLibraryBook, ReadingStatus, StoredLibraryBook
 } from "./types";
 
 type Row = Record<string, unknown>;
@@ -20,7 +19,7 @@ export class SqliteLibraryRepository {
         COALESCE(e.published_year, b.first_published_year) AS published_year,
         e.publisher, e.isbn10, e.isbn13, e.page_count,
         s.name AS series_name, bs.volume_number AS series_volume,
-        ub.status, ub.owned, ub.favorite, ub.newly_discovered, ub.progress_value, ub.progress_total,
+        ub.status, ub.owned, ub.favorite, ub.newly_discovered, ub.rating, ub.progress_value, ub.progress_total,
         ub.started_at, ub.finished_at, ub.created_at, ub.updated_at
        FROM user_books ub
        JOIN books b ON b.id = ub.book_id
@@ -62,6 +61,7 @@ export class SqliteLibraryRepository {
       description: stringOrUndefined(row.description),
       coverUrl: stringOrUndefined(row.cover_url),
       status: String(row.status) as ReadingStatus,
+      rating: numberOrUndefined(row.rating),
       favorite: Boolean(Number(row.favorite)),
       owned: Boolean(Number(row.owned)),
       newlyDiscovered: Boolean(Number(row.newly_discovered)),
@@ -324,10 +324,15 @@ export class SqliteLibraryRepository {
         finishedAt = undefined;
       }
 
+      if (changes.rating != null && (!Number.isInteger(changes.rating) || changes.rating < 1 || changes.rating > 5)) {
+        throw new Error("La note doit être un nombre entier de 1 à 5.");
+      }
+      const rating = changes.rating === undefined ? numberOrUndefined(row.rating) ?? null : changes.rating;
+
       await this.db.execute(
         `UPDATE user_books SET
           status = ?, owned = ?, favorite = ?, newly_discovered = ?, progress_value = ?, progress_total = ?,
-          started_at = ?, finished_at = ?, updated_at = ?
+          started_at = ?, finished_at = ?, rating = ?, updated_at = ?
          WHERE id = ?`,
         [
           status,
@@ -336,7 +341,7 @@ export class SqliteLibraryRepository {
           (changes.newlyDiscovered ?? Boolean(Number(row.newly_discovered))) ? 1 : 0,
           changes.progressValue ?? numberOrUndefined(row.progress_value) ?? null,
           changes.progressTotal ?? numberOrUndefined(row.progress_total) ?? null,
-          startedAt ?? null, finishedAt ?? null, now, id
+          startedAt ?? null, finishedAt ?? null, rating, now, id
         ]
       );
 
@@ -385,59 +390,6 @@ export class SqliteLibraryRepository {
       [now, now, id, this.userId]
     );
     if (!result.rowsAffected) throw new Error("Livre introuvable dans la bibliothèque.");
-  }
-
-  async listReadingSessions(userBookId: string): Promise<ReadingSession[]> {
-    const rows = await this.db.query<Row>(
-      "SELECT * FROM reading_sessions WHERE user_book_id = ? AND deleted_at IS NULL ORDER BY started_at DESC",
-      [userBookId]
-    );
-    return rows.map(row => ({
-      id: String(row.id),
-      userBookId: String(row.user_book_id),
-      startedAt: String(row.started_at),
-      durationMinutes: Number(row.duration_minutes),
-      startProgress: numberOrUndefined(row.start_progress),
-      endProgress: numberOrUndefined(row.end_progress),
-      notes: stringOrUndefined(row.notes),
-      createdAt: String(row.created_at)
-    }));
-  }
-
-  async addReadingSession(userBookId: string, input: NewReadingSession): Promise<void> {
-    if (!Number.isFinite(input.durationMinutes) || input.durationMinutes <= 0) {
-      throw new Error("La durée de la session doit être supérieure à 0 minute.");
-    }
-    await this.db.transaction(async () => {
-      const book = (await this.db.query<Row>(
-        "SELECT * FROM user_books WHERE id = ? AND user_id = ? AND deleted_at IS NULL LIMIT 1", [userBookId, this.userId]
-      ))[0];
-      if (!book) throw new Error("Livre introuvable dans la bibliothèque.");
-
-      const startProgress = numberOrUndefined(book.progress_value);
-      const endProgress = input.endProgress;
-      if (endProgress != null && endProgress < 0) throw new Error("La progression ne peut pas être négative.");
-      const total = numberOrUndefined(book.progress_total);
-      if (endProgress != null && total != null && endProgress > total) {
-        throw new Error(`La progression ne peut pas dépasser ${total}.`);
-      }
-
-      const now = new Date().toISOString();
-      await this.db.execute(
-        `INSERT INTO reading_sessions
-         (id,user_book_id,started_at,duration_minutes,start_progress,end_progress,notes,created_at,updated_at)
-         VALUES(?,?,?,?,?,?,?,?,?)`,
-        [crypto.randomUUID(), userBookId, input.startedAt, Math.round(input.durationMinutes),
-         startProgress ?? null, endProgress ?? null, input.notes?.trim() || null, now, now]
-      );
-
-      const previous = String(book.status);
-      const status = previous === "TO_READ" || previous === "ON_HOLD" ? "READING" : previous;
-      await this.db.execute(
-        "UPDATE user_books SET status = ?, progress_value = ?, started_at = ?, updated_at = ? WHERE id = ?",
-        [status, endProgress ?? startProgress ?? null, stringOrUndefined(book.started_at) ?? input.startedAt, now, userBookId]
-      );
-    });
   }
 
   async getFollowedAuthor(authorKey: string): Promise<FollowedAuthor | null> {

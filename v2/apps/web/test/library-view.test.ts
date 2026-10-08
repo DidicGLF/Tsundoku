@@ -123,3 +123,32 @@ describe("attributeOrphans", () => {
     expect(result.map(book => book.authors)).toEqual([["Isaac Asimov"], ["Isaac Asimov"], ["Robert Silverberg"]]);
   });
 });
+
+describe("book page helpers", () => {
+  it("turns a percentage into pages, keeping a known total and falling back to 100", async () => {
+    const { progressUpdateFor, pageReached, readPercent, ratingLabels, bookDatesLine } = await import("../src/lib/library-view");
+    expect(progressUpdateFor({ pageCount: 928 }, 42)).toEqual({ progressValue: 390, progressTotal: 928 });
+    expect(progressUpdateFor({ progressTotal: 300, pageCount: 928 }, 50)).toEqual({ progressValue: 150, progressTotal: 300 });
+    expect(progressUpdateFor({}, 42)).toEqual({ progressValue: 42, progressTotal: 100 });
+    expect(progressUpdateFor({}, 140)).toEqual({ progressValue: 100, progressTotal: 100 });
+    expect(pageReached({ pageCount: 928 }, 42)).toBe(390);
+    expect(pageReached({}, 42)).toBeUndefined();
+    expect(readPercent({ progressValue: 390, progressTotal: 928 } as never)).toBe(42);
+    expect(readPercent({} as never)).toBe(0);
+    expect(ratingLabels[0]).toBe("Pas encore noté");
+    expect(ratingLabels).toHaveLength(6);
+    const base = { addedAt: "2026-09-12T10:00:00Z", startedAt: "2026-10-03T10:00:00Z", finishedAt: "2026-10-21T10:00:00Z" };
+    expect(bookDatesLine({ ...base, status: "READ" })).toBe("Commencé le 3 octobre · terminé le 21 octobre · 18 jours");
+    expect(bookDatesLine({ ...base, status: "READING" }, new Date("2026-10-08T10:00:00Z"))).toBe("Commencé le 3 octobre · 5 jours de lecture");
+    expect(bookDatesLine({ ...base, status: "TO_READ" })).toBe("Dans ma pile depuis le 12 septembre");
+  });
+});
+
+describe("getBookLanguageName", () => {
+  it("names known languages in French and stays empty when unknown", async () => {
+    const { getBookLanguageName } = await import("../src/services/language");
+    expect(getBookLanguageName({ language: "fre" } as never)).toBe("Français");
+    expect(getBookLanguageName({ language: "eng" } as never)).toBe("Anglais");
+    expect(getBookLanguageName({} as never)).toBe("");
+  });
+});

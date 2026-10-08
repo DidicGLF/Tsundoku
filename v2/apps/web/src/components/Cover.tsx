@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 
 interface CoverBook { title: string; authors: string[]; coverUrl?: string }
 
-/** Teinte stable (0-359) dérivée du titre : un même livre garde toujours la même couleur. */
-function hueOf(text: string): number {
+/** Teintes du logo : rouge du soleil, ocre, vert, bleu ardoise et deux nuances froides. */
+const LOGO_HUES = [12, 32, 142, 208, 222, 340];
+
+/** Teinte stable dérivée du titre : un même livre garde toujours la même couleur, toujours dans la palette du logo. */
+export function hueOf(text: string): number {
   let hash = 0;
   for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  return hash % 360;
+  return LOGO_HUES[hash % LOGO_HUES.length];
 }
 
 /** Titre sans sous-titre ni mention de responsabilité (« Dune / Frank Herbert ; trad. … »). */

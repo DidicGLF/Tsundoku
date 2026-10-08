@@ -20,6 +20,8 @@ export interface StoredLibraryBook {
   status: ReadingStatus;
   favorite: boolean;
   owned: boolean;
+  /** Star rating from 1 to 5; undefined when not rated. */
+  rating?: number;
   progressValue?: number;
   progressTotal?: number;
   startedAt?: string;
@@ -55,30 +57,14 @@ export interface LibraryBookUpdate {
   status?: ReadingStatus;
   favorite?: boolean;
   owned?: boolean;
+  /** 1–5 stars; null removes the rating. */
+  rating?: number | null;
   progressValue?: number;
   progressTotal?: number;
   /** Empty string removes the book from its series. */
   seriesName?: string;
   seriesVolume?: number;
   newlyDiscovered?: boolean;
-}
-
-export interface ReadingSession {
-  id: string;
-  userBookId: string;
-  startedAt: string;
-  durationMinutes: number;
-  startProgress?: number;
-  endProgress?: number;
-  notes?: string;
-  createdAt: string;
-}
-
-export interface NewReadingSession {
-  startedAt: string;
-  durationMinutes: number;
-  endProgress?: number;
-  notes?: string;
 }
 
 export interface FollowedAuthor {

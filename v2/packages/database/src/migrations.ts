@@ -106,6 +106,12 @@ const migrations: string[][] = [
     `CREATE INDEX idx_book_authors_book ON book_authors(book_id, position)`,
     `CREATE INDEX idx_book_series_series ON book_series(series_id, volume_number)`,
     `CREATE INDEX idx_reading_sessions_book ON reading_sessions(user_book_id, started_at)`
+  ],
+  // 2 — star rating (1–5, NULL = not rated); the reading journal is gone
+  [
+    `ALTER TABLE user_books ADD COLUMN rating INTEGER`,
+    `DROP INDEX IF EXISTS idx_reading_sessions_book`,
+    `DROP TABLE IF EXISTS reading_sessions`
   ]
 ];
 
@@ -132,7 +138,8 @@ async function dropEverything(db: SqliteAdapter): Promise<void> {
   });
 }
 
-export async function runMigrations(db: SqliteAdapter): Promise<void> {
+/** `targetVersion` lets tests stop early to exercise an upgrade path. */
+export async function runMigrations(db: SqliteAdapter, targetVersion = migrations.length): Promise<void> {
   let version = await currentVersion(db);
 
   if (version === 0) {
@@ -144,7 +151,7 @@ export async function runMigrations(db: SqliteAdapter): Promise<void> {
     if (existing.length) await dropEverything(db);
   }
 
-  while (version < migrations.length) {
+  while (version < targetVersion) {
     const statements = migrations[version];
     await db.transaction(async () => {
       for (const sql of statements) await db.execute(sql);
