@@ -2,7 +2,8 @@ import type { BookSearchResult } from "@tsundoku/book-sources";
 import { getBookLanguageLabel } from "../services/bookSearch";
 import type { LibraryBook } from "../services/library";
 import { Cover } from "./Cover";
-import { displayAuthors, statusLabels } from "../lib/library-view";
+import { displayAuthors, readPercent } from "../lib/library-view";
+import { Check, Heart, Star } from "./Icons";
 
 const sourceLabels = { "google-books": "Google Books", bnf: "BnF", "open-library": "Open Library" } as const;
 
@@ -23,20 +24,18 @@ export function SearchCard({ b, onAdd, onTrack, added }: {
   </article>;
 }
 
-export function LibraryCard({ b, onOpen }: { b: LibraryBook; onOpen: (b: LibraryBook) => void }) {
-  const progress = b.progressTotal && b.progressValue != null
-    ? Math.min(100, Math.round((b.progressValue / b.progressTotal) * 100))
-    : undefined;
-
-  return <article className="card library-card" onClick={() => onOpen(b)}>
-    <Cover book={b} />
-    <div>
-      <small>{b.owned ? "✓ Possédé" : "○ Non possédé"} · {statusLabels[b.status]} {b.favorite ? "★" : ""}</small>
-      <h3>{b.title}</h3>
-      <p>{displayAuthors(b.authors)}</p>
-      {progress != null && <div className="progress"><i style={{ width: `${progress}%` }} /></div>}
-      {progress != null && <p>{progress}% · {b.progressValue}/{b.progressTotal}</p>}
-    </div>
-  </article>;
+/** Tuile de la grille de la bibliothèque : la couverture d'abord, l'état en pastille. */
+export function LibraryTile({ b, onOpen }: { b: LibraryBook; onOpen: (b: LibraryBook) => void }) {
+  const percent = readPercent(b);
+  return <button type="button" className={b.owned ? "tile" : "tile missing"} onClick={() => onOpen(b)}>
+    <span className="tile-art">
+      <Cover book={b} variant="tile" />
+      {b.owned && <span className="tile-owned" role="img" aria-label="Possédé"><Check size={14} strokeWidth={3.2} /></span>}
+      {b.favorite && <span className="tile-fav" role="img" aria-label="Favori"><Heart size={14} filled /></span>}
+      {!b.owned && <span className="tile-missing">Manquant</span>}
+      {b.owned && b.status === "READING" && <span className="tile-progress" role="img" aria-label={`${percent} % lu`}><i style={{ width: `${percent}%` }} /></span>}
+      {b.status === "READ" && b.rating != null && <span className="tile-rating"><Star filled size={12} />{b.rating}</span>}
+    </span>
+    <span className="tile-title">{b.title}</span>
+  </button>;
 }
-

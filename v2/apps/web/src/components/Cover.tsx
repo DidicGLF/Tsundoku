@@ -21,15 +21,15 @@ function shortTitle(title: string): string {
  * Jaquette d'un livre. Sans image (ou si elle ne charge pas), une tuile colorée portant
  * le titre prend la place : l'absence de jaquette doit rester présentable.
  * `pending` : une recherche de jaquette est en cours pour ce livre (la tuile pulse).
- * `variant` : « card » (liste), « mini » (ligne de bibliographie), « detail » (fiche).
+ * `variant` : « card » (liste), « mini » (ligne de bibliographie), « tile » (grille), « detail » (fiche).
  */
-export function Cover({ book, variant = "card", pending = false }: { book: CoverBook; variant?: "card" | "mini" | "detail"; pending?: boolean }) {
+export function Cover({ book, variant = "card", pending = false }: { book: CoverBook; variant?: "card" | "mini" | "detail" | "tile"; pending?: boolean }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [book.coverUrl]);
 
-  const className = variant === "detail" ? "detail-cover" : variant === "mini" ? "mini-cover" : "cover";
+  const className = variant === "detail" ? "detail-cover" : variant === "mini" ? "mini-cover" : variant === "tile" ? "tile-cover" : "cover";
   if (book.coverUrl && !broken) {
-    return <img className={variant === "detail" ? "detail-cover" : undefined} src={book.coverUrl} alt="" loading="lazy" onError={() => setBroken(true)} />;
+    return <img className={variant === "detail" ? "detail-cover" : variant === "tile" ? "tile-cover" : undefined} src={book.coverUrl} alt="" loading="lazy" onError={() => setBroken(true)} />;
   }
 
   const title = shortTitle(book.title);

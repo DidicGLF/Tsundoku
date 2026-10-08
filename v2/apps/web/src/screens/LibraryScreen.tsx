@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { canonicalAuthorIdentity } from "@tsundoku/book-sources";
-import { LibraryCard } from "../components/BookCards";
+import { LibraryTile } from "../components/BookCards";
 import { filterLibrary, groupByAuthor, libraryFilterCounts, plural, sortLibrary, type LibrarySort } from "../lib/library-view";
 import type { LibraryFilters } from "../hooks/useLibraryFilters";
 import { useLibrary } from "../state/LibraryProvider";
@@ -68,7 +68,8 @@ export function LibraryScreen({ filters }: { filters: LibraryFilters }) {
                 <em>{missing} {plural(missing, "manquant")}</em>
               </div>
             </div>
-            <div className="grid">{group.books.map(b => <LibraryCard key={b.id} b={b} onOpen={book => nav.push({ name: "detail", id: book.id })} />)}</div>
+            <div className="author-meter" aria-hidden="true"><i style={{ width: `${Math.round((group.ownedCount / group.books.length) * 100)}%` }} /></div>
+            <div className="tile-grid">{group.books.map(b => <LibraryTile key={b.id} b={b} onOpen={book => nav.push({ name: "detail", id: book.id })} />)}</div>
           </section>;
         })}
       </div>

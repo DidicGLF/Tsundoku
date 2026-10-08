@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Home, Library, PlusCircle, Settings } from "./components/Icons";
 import { useBookSearch } from "./hooks/useBookSearch";
 import { useLibraryFilters } from "./hooks/useLibraryFilters";
 import { AuthorScreen } from "./screens/AuthorScreen";
@@ -53,11 +54,17 @@ function Shell() {
   return <div className="shell">
     <aside>
       <div className="brand"><img src="/logo.png" alt="" width="40" height="40" /><b>Tsundoku</b></div>
-      <nav>
-        <button onClick={() => nav.reset({ name: "home" })}>Accueil</button>
-        <button onClick={() => nav.reset({ name: "library" })}>Bibliothèque</button>
-        <button onClick={() => nav.reset({ name: "add" })}>Ajouter</button>
-        <button onClick={() => nav.reset({ name: "settings" })}>Paramètres</button>
+      <nav aria-label="Navigation principale">
+        {([
+          ["home", "Accueil", Home, "home"],
+          ["library", "Bibliothèque", Library, "library"],
+          ["add", "Ajouter", PlusCircle, "add"],
+          ["settings", "Paramètres", Settings, "settings"]
+        ] as const).map(([name, label, TabIcon, tab]) =>
+          <button key={name} type="button" onClick={() => nav.reset({ name })}
+            aria-current={(route.name === name || ((route.name === "author" || route.name === "detail") && tab === "library")) ? "page" : undefined}>
+            <TabIcon size={22} /><span>{label}</span>
+          </button>)}
       </nav>
       <span>{dbState === "loading" && "◌ Initialisation SQLite…"}{dbState === "ready" && "● SQLite local"}{dbState === "error" && "⚠ SQLite indisponible"}</span>
     </aside>
