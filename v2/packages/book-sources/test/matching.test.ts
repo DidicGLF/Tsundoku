@@ -191,3 +191,18 @@ describe("incomplete author names", () => {
     expect(shareAuthor(["Asimov"], ["David Eddings"])).toBe(false);
   });
 });
+
+describe("series mentions glued to a title", () => {
+  it("strips a trailing series + volume number but keeps omnibus and ordinary titles", () => {
+    expect(workTitle("Le trone de diamant la trilogie des joyaux I")).toBe("Le trone de diamant");
+    expect(workTitle("Le chevalier de rubis la trilogie des joyaux II")).toBe("Le chevalier de rubis");
+    expect(workTitle("Le pion blanc des présages, tome 1")).toBe("Le pion blanc des présages");
+    expect(workTitle("Fondation, livre 2")).toBe("Fondation");
+    expect(workTitle("La trilogie des joyaux")).toBe("La trilogie des joyaux");
+    expect(workTitle("Dune")).toBe("Dune");
+    expect(isSameWork(
+      { title: "Le trone de diamant la trilogie des joyaux I", authors: ["Eddings"], isbn13: "9782266110075" },
+      { title: "Le trône de diamant / David Eddings ; [trad. par E. C. L. Meistermann]", authors: ["David Eddings"], isbn13: "9782298006094" }
+    )).toBe(true);
+  });
+});

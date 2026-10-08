@@ -146,6 +146,14 @@ export function shareAuthor(a: string[], b: string[]): boolean {
 const GENERIC_SUBTITLE = /\s:\s*(roman|romans|thriller|thrillers|nouvelles?|récit|récits|essai|poèmes?|poésie|policier|roman policier|polar|science-fiction|fantasy|théâtre|pièce|témoignage|document|contes?|bande dessinée|bd|manga|album|biographie|autobiographie|texte intégral|édition intégrale|intégrale)\s*$/i;
 
 /**
+ * Mention de série collée au titre par certaines sources (Open Library : « Le trone de diamant la
+ * trilogie des joyaux I »). Seulement quand elle finit par un numéro de tome, pour ne pas toucher
+ * au titre d'un intégral (« La trilogie des joyaux »).
+ */
+const SERIES_SUFFIX = /\s+(?:(?:la|le|les)\s+)?(?:trilogie|tétralogie|tetralogie|pentalogie|saga|cycle|série|serie)\s+(?:(?:de|du|des|la|le|les)\s+|d['’]|l['’])?[\p{L}'’ -]+?\s+(?:[IVX]{1,5}|\d{1,2})\s*$/iu;
+const VOLUME_SUFFIX = /\s+(?:tome|t\.|vol\.?|volume|livre)\s*(?:[IVX]{1,5}|\d{1,2})\s*$/iu;
+
+/**
  * Titre d'œuvre, sans bruit de catalogue : mention de responsabilité (« / Nicolas Beuglet »),
  * mention d'édition entre parenthèses ou crochets en fin de titre, mention de genre (« : thriller »).
  * Les vrais sous-titres sont conservés (« Astérix : Le Gaulois » ≠ « Astérix : La Serpe d'or »).
@@ -154,7 +162,7 @@ export function workTitle(title: string): string {
   let t = title.split(/\s\/\s?/)[0].trim();
   for (let previous = ""; previous !== t;) {
     previous = t;
-    t = t.replace(/\s*(\([^)]*\)?|\[[^\]]*\]?)\s*$/, "").replace(GENERIC_SUBTITLE, "").trim();
+    t = t.replace(/\s*(\([^)]*\)?|\[[^\]]*\]?)\s*$/, "").replace(GENERIC_SUBTITLE, "").replace(SERIES_SUFFIX, "").replace(VOLUME_SUFFIX, "").trim();
   }
   return t.replace(/[\s.,;:]+$/g, "") || title;
 }
