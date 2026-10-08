@@ -33,21 +33,41 @@ export async function unfollowAuthor(authorKey: string, books: LibraryBook[]): P
 
 /**
  * Complète jaquettes et métadonnées des livres locaux à partir de `found`.
- * Renvoie la bibliothèque mise à jour, ou null s'il n'y avait rien à compléter.
+ * Chaque étape de recherche est écrite en base dès qu'elle aboutit : quitter l'écran
+ * n'annule rien, et `onUpdate` (si l'écran est encore là) reçoit la bibliothèque à jour.
  * Best effort : toute erreur est ignorée, une jaquette manquante ne bloque rien.
  */
-export async function enrichLibraryBooks(found: BookSearchResult[], localBooks: LibraryBook[], language: BookSearchLanguage): Promise<LibraryBook[] | null> {
-  try {
-    const enriched = await enrichSearchResults(found, language);
+export async function enrichLibraryBooks(
+  found: BookSearchResult[], localBooks: LibraryBook[], language: BookSearchLanguage,
+  onUpdate?: (library: LibraryBook[]) => void
+): Promise<void> {
+  const saved = new Map<string, boolean>(); // id → jaquette déjà écrite
+  let writes: Promise<unknown> = Promise.resolve();
+
+  const persist = (enriched: BookSearchResult[]) => {
     const matches = enriched.flatMap(book => {
       if (!book.coverUrl && !book.description && !book.pageCount && !book.language) return [];
       const local = localBooks.find(candidate => isSameWork(book, candidate));
-      return local ? [{ id: local.id, book }] : [];
+      if (!local) return [];
+      // Chaque livre est écrit une fois, et une seconde si sa jaquette arrive à une étape suivante.
+      const done = saved.get(local.id);
+      if (done !== undefined && (done || !book.coverUrl)) return [];
+      saved.set(local.id, Boolean(book.coverUrl));
+      return [{ id: local.id, book }];
     });
-    return matches.length ? await refreshLibraryMetadata(matches) : null;
+    if (!matches.length) return;
+    writes = writes
+      .then(() => refreshLibraryMetadata(matches))
+      .then(library => onUpdate?.(library))
+      .catch(() => undefined);
+  };
+
+  try {
+    persist(await enrichSearchResults(found, language, persist));
   } catch {
-    return null;
+    // réseau indisponible : on réessaiera à la prochaine ouverture
   }
+  await writes;
 }
 
 export interface AuthorRefreshResult {

@@ -32,7 +32,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   useEffect(() => {
     let active = true;
     getFollowedAuthor(authorKey).then(info => { if (active) setLastRefreshedAt(info?.lastRefreshedAt); }, () => undefined);
-    void enrichLibraryBooks(booksRef.current, booksRef.current, preferredLanguage).then(updated => { if (active && updated) setLibrary(updated); });
+    void enrichLibraryBooks(booksRef.current, booksRef.current, preferredLanguage, updated => { if (active) setLibrary(updated); });
     return () => { active = false; };
   }, [authorKey, preferredLanguage, setLibrary]);
 
@@ -54,7 +54,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
         ? `${result.newCount} ${plural(result.newCount, "nouvelle")} ${plural(result.newCount, "œuvre")} ${plural(result.newCount, "détectée")}.`
         : "Bibliographie à jour : aucune nouvelle œuvre détectée.");
       if (result.newCount) setFilter("ALL");
-      void enrichLibraryBooks(result.remote, result.library, preferredLanguage).then(updated => { if (updated) setLibrary(updated); });
+      void enrichLibraryBooks(result.remote, result.library, preferredLanguage, setLibrary);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Impossible d’actualiser cette bibliographie.");
     } finally {
