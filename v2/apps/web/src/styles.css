@@ -1393,3 +1393,29 @@ select {
 .cover-fallback.cover-detail .cover-author {
   font-size: 13px;
 }
+
+.cover-pending {
+  animation: cover-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes cover-pulse {
+  50% { opacity: .55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-pending { animation: none; }
+}
+
+.cover-status {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cover-status.running {
+  color: var(--accent-text);
+}

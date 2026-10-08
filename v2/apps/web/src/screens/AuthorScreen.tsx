@@ -22,10 +22,14 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  // idle : rien à chercher · running : recherche en cours · done : terminée · partial : plafond atteint
+  const [coverStatus, setCoverStatus] = useState<"idle" | "running" | "done" | "partial">("idle");
 
   const books = useMemo(() => booksOfAuthor(library, authorKey), [library, authorKey]);
   const visible = useMemo(() => filterAuthorBooks(books, filter, sort), [books, filter, sort]);
   const stats = authorStats(books);
+  const withCover = books.filter(book => book.coverUrl).length;
+  const withoutCover = books.length - withCover;
 
   // À l'ouverture : date de dernière actualisation, puis jaquettes manquantes en arrière-plan.
   const booksRef = useRef(books);
@@ -33,7 +37,9 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   useEffect(() => {
     let active = true;
     getFollowedAuthor(authorKey).then(info => { if (active) setLastRefreshedAt(info?.lastRefreshedAt); }, () => undefined);
-    void enrichLibraryBooks(booksRef.current, booksRef.current, preferredLanguage, updated => { if (active) setLibrary(updated); });
+    setCoverStatus(booksRef.current.some(book => !book.coverUrl) ? "running" : "idle");
+    void enrichLibraryBooks(booksRef.current, booksRef.current, preferredLanguage, updated => { if (active) setLibrary(updated); })
+      .then(({ truncated }) => { if (active) setCoverStatus(truncated ? "partial" : "done"); });
     return () => { active = false; };
   }, [authorKey, preferredLanguage, setLibrary]);
 
@@ -55,7 +61,9 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
         ? `${result.newCount} ${plural(result.newCount, "nouvelle")} ${plural(result.newCount, "œuvre")} ${plural(result.newCount, "détectée")}.`
         : "Bibliographie à jour : aucune nouvelle œuvre détectée.");
       if (result.newCount) setFilter("ALL");
-      void enrichLibraryBooks(result.remote, result.library, preferredLanguage, setLibrary);
+      setCoverStatus("running");
+      void enrichLibraryBooks(result.remote, result.library, preferredLanguage, setLibrary)
+        .then(({ truncated }) => setCoverStatus(truncated ? "partial" : "done"));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Impossible d’actualiser cette bibliographie.");
     } finally {
@@ -116,6 +124,14 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
       <p className="author-delete-help">Retire cet auteur et toute sa bibliographie suivie de Tsundoku. Une confirmation sera demandée.</p>
     </section>
 
+    {coverStatus === "running" && <p className="cover-status running" role="status">Recherche des jaquettes… {withCover} / {books.length}</p>}
+    {coverStatus === "partial" && withoutCover > 0 && <p className="cover-status" role="status">
+      Recherche partielle : {withoutCover} {plural(withoutCover, "livre")} sans jaquette, la suite reprendra à la prochaine ouverture de cette page.
+    </p>}
+    {coverStatus === "done" && withoutCover > 0 && <p className="cover-status" role="status">
+      {withoutCover} {plural(withoutCover, "livre")} sans jaquette disponible pour l’instant (nouvelle tentative dans 7 jours).
+    </p>}
+
     <section className="author-toolbar">
       <div className="filter-row author-filters">
         {filterButton("ALL", "Tous", stats.total)}
@@ -134,7 +150,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
     <div className="author-book-list author-book-list-flat">
       {visible.map(book => <article className={`author-book-row ${book.owned ? "owned" : "missing"}`} key={book.id}>
         <button type="button" className="book-row-main" onClick={() => nav.push({ name: "detail", id: book.id })}>
-          <Cover book={book} variant="mini" />
+          <Cover book={book} variant="mini" pending={coverStatus === "running" && !book.coverUrl} />
           <span><small>{book.publishedYear ?? "Date inconnue"} {book.newlyDiscovered && <b className="new-book-badge">Nouveau</b>}</small><strong>{book.title}</strong><em>{book.publisher ?? ""}</em></span>
         </button>
         <div className="quick-book-actions">

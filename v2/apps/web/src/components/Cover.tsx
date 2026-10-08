@@ -17,9 +17,10 @@ function shortTitle(title: string): string {
 /**
  * Jaquette d'un livre. Sans image (ou si elle ne charge pas), une tuile colorée portant
  * le titre prend la place : l'absence de jaquette doit rester présentable.
+ * `pending` : une recherche de jaquette est en cours pour ce livre (la tuile pulse).
  * `variant` : « card » (liste), « mini » (ligne de bibliographie), « detail » (fiche).
  */
-export function Cover({ book, variant = "card" }: { book: CoverBook; variant?: "card" | "mini" | "detail" }) {
+export function Cover({ book, variant = "card", pending = false }: { book: CoverBook; variant?: "card" | "mini" | "detail"; pending?: boolean }) {
   const [broken, setBroken] = useState(false);
   useEffect(() => setBroken(false), [book.coverUrl]);
 
@@ -31,7 +32,7 @@ export function Cover({ book, variant = "card" }: { book: CoverBook; variant?: "
   const title = shortTitle(book.title);
   const author = book.authors[0];
   return <div
-    className={`${className} cover-fallback cover-${variant}`}
+    className={`${className} cover-fallback cover-${variant}${pending ? " cover-pending" : ""}`}
     style={{ "--hue": hueOf(title) } as React.CSSProperties}
     aria-hidden="true"
   >

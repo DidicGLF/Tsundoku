@@ -31,6 +31,9 @@ export async function unfollowAuthor(authorKey: string, books: LibraryBook[]): P
   return library;
 }
 
+/** Fin d'un passage de recherche de jaquettes ; `truncated` : des livres n'ont pas été vérifiés (plafond atteint). */
+export interface CoverSearchStatus { truncated: boolean }
+
 /**
  * Complète jaquettes et métadonnées des livres locaux à partir de `found`.
  * Chaque étape de recherche est écrite en base dès qu'elle aboutit : quitter l'écran
@@ -40,7 +43,8 @@ export async function unfollowAuthor(authorKey: string, books: LibraryBook[]): P
 export async function enrichLibraryBooks(
   found: BookSearchResult[], localBooks: LibraryBook[], language: BookSearchLanguage,
   onUpdate?: (library: LibraryBook[]) => void
-): Promise<void> {
+): Promise<CoverSearchStatus> {
+  let status: CoverSearchStatus = { truncated: false };
   const saved = new Map<string, boolean>(); // id → jaquette déjà écrite
   let writes: Promise<unknown> = Promise.resolve();
 
@@ -63,11 +67,12 @@ export async function enrichLibraryBooks(
   };
 
   try {
-    persist(await enrichSearchResults(found, language, persist));
+    persist(await enrichSearchResults(found, language, persist, done => { status = done; }));
   } catch {
     // réseau indisponible : on réessaiera à la prochaine ouverture
   }
   await writes;
+  return status;
 }
 
 export interface AuthorRefreshResult {

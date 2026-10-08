@@ -184,9 +184,12 @@ async function hasGoogleKey(): Promise<boolean> {
 export async function enrichSearchResults(
   books: BookSearchResult[],
   language: BookSearchLanguage,
-  onProgress?: (books: BookSearchResult[]) => void
+  onProgress?: (books: BookSearchResult[]) => void,
+  /** Appelé une fois à la fin ; `truncated` : un plafond a laissé des livres non vérifiés. */
+  onDone?: (status: { truncated: boolean }) => void
 ): Promise<BookSearchResult[]> {
   let current = withCachedCovers(books);
+  let truncated = false;
   const publish = () => rankByLanguage(mergeSearchResults(current), language);
 
   const apply = (covers: Map<string, string>) => {
@@ -202,16 +205,18 @@ export async function enrichSearchResults(
 
   /** Recherche par titre, par lots : chaque lot trouvé est publié tout de suite. */
   const titleStage = async (candidates: BookSearchResult[]) => {
-    const todo = candidates.filter(book => !book.coverUrl && !recentlyMissed(book)).slice(0, TITLE_LOOKUP_LIMIT);
+    const eligible = candidates.filter(book => !book.coverUrl && !recentlyMissed(book));
+    if (eligible.length > TITLE_LOOKUP_LIMIT) truncated = true;
+    const todo = eligible.slice(0, TITLE_LOOKUP_LIMIT);
     for (let start = 0; start < todo.length; start += BATCH_SIZE) apply(await coversFromTitle(todo.slice(start, start + BATCH_SIZE)));
   };
 
   /** Amazon, seulement pour les livres à ISBN encore sans jaquette (exacte à l'édition, donc préférable au titre). */
   const amazonStage = async () => {
     if (!COVER_SOURCES.amazon) return;
-    const todo = current
-      .filter(book => !book.coverUrl && hasIsbn(book) && !recentlyMissed(book, Date.now(), "amazon"))
-      .slice(0, AMAZON_LOOKUP_LIMIT);
+    const eligible = current.filter(book => !book.coverUrl && hasIsbn(book) && !recentlyMissed(book, Date.now(), "amazon"));
+    if (eligible.length > AMAZON_LOOKUP_LIMIT) truncated = true;
+    const todo = eligible.slice(0, AMAZON_LOOKUP_LIMIT);
     for (let start = 0; start < todo.length; start += BATCH_SIZE) apply(await coversFromAmazon(todo.slice(start, start + BATCH_SIZE)));
   };
 
@@ -223,9 +228,11 @@ export async function enrichSearchResults(
   await titleStage(current.filter(book => !book.coverUrl));
 
   if (await hasGoogleKey()) {
-    const todo = current.filter(book => !book.coverUrl && !recentlyMissed(book)).slice(0, GOOGLE_LOOKUP_LIMIT);
-    apply(await coversFromGoogle(todo));
+    const eligible = current.filter(book => !book.coverUrl && !recentlyMissed(book));
+    if (eligible.length > GOOGLE_LOOKUP_LIMIT) truncated = true;
+    apply(await coversFromGoogle(eligible.slice(0, GOOGLE_LOOKUP_LIMIT)));
   }
 
+  onDone?.({ truncated });
   return publish();
 }
