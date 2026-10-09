@@ -15,24 +15,21 @@ depuis le téléphone et le PC, chez toi comme dehors, sans ouvrir de port sur t
   ```
   puis redémarrer le conteneur.
 
-## 2. Copier et installer le serveur
+## 2. Installer le serveur (depuis GitHub)
 
-Sur le PC de développement :
-
-```bash
-nix-shell --run 'pnpm --filter @tsundoku/sync-server release'
-scp packages/sync-server/release/tsundoku-sync.tgz root@<adresse-du-conteneur>:/root/
-```
-
-Dans le conteneur :
+Dans la console du conteneur (en root), une seule commande :
 
 ```bash
-tar xzf tsundoku-sync.tgz && cd tsundoku-sync && ./deploy/install.sh
+apt-get update && apt-get install -y curl && curl -fsSL https://raw.githubusercontent.com/DidicGLF/Tsundoku/main/v2/packages/sync-server/deploy/bootstrap.sh | bash
 ```
 
-Le script installe PostgreSQL et Node, crée la base, génère un **jeton secret** (affiché une fois, relisible avec
-`grep SYNC_TOKEN /etc/tsundoku-sync.env`) et démarre le service `tsundoku-sync`. Le relancer plus tard met le
-code à jour sans toucher aux données ni au jeton.
+Elle récupère le code sur GitHub, installe Node et PostgreSQL, compile le serveur, crée la base, génère un
+**jeton secret** (affiché une fois, relisible avec `grep SYNC_TOKEN /etc/tsundoku-sync.env`) et démarre le
+service `tsundoku-sync`. Pour **mettre à jour** plus tard : relancer la même commande (ou `/opt/tsundoku-src/v2/packages/sync-server/deploy/bootstrap.sh`) ;
+la base et le jeton ne sont pas touchés. Le conteneur doit avoir accès à Internet.
+
+*Sans GitHub* : `pnpm --filter @tsundoku/sync-server release` fabrique une archive à copier avec `scp`,
+puis `tar xzf tsundoku-sync.tgz && cd tsundoku-sync && ./deploy/install.sh`.
 
 ## 3. L'HTTPS avec Tailscale
 

@@ -16,6 +16,6 @@
   "devDependencies": {
     "@types/node": "^22",
     "@types/pg": "^8.11.10",
-    "@tsundoku/database": "workspace:*"
+    "typescript": "^5.7.2"
   }
 }

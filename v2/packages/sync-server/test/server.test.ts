@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHttpTransport, runMigrations, SqliteLibraryRepository, syncOnce, SyncServerError } from "@tsundoku/database";
+import { createHttpTransport, runMigrations, SqliteLibraryRepository, syncOnce, SyncServerError } from "../../database/src/index";
 import { createApp, prepareDatabase } from "../src/app";
 import { createTestAdapter } from "../../database/test/sqljs-adapter";
 
