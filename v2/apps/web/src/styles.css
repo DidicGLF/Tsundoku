@@ -2347,3 +2347,8 @@ select {
 .release-list .mini-cover {
   flex: none;
 }
+
+.home-shelf-empty {
+  margin: 0;
+  color: var(--muted);
+}

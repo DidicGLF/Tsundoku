@@ -45,4 +45,11 @@ describe("accueil", () => {
     expect(container.textContent).not.toContain("Nouveautés");
     expect(container.textContent).toContain("Derniers ajouts");
   });
+
+  it("sans livre possédé (auteur suivi seulement), explique pourquoi le bloc est vide", async () => {
+    library = [book("m", { owned: false })];
+    await mount();
+    expect(container.textContent).toContain("Derniers ajouts");
+    expect(container.textContent).toContain("Aucun livre possédé");
+  });
 });

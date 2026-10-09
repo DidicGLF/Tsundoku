@@ -59,14 +59,16 @@ export function HomeScreen({ filters }: { filters: LibraryFilters }) {
         </li>)}
       </ul>
     </section>}
-    {recent.length > 0 && <section className="home-shelf" aria-labelledby="home-recent">
+    {library.length > 0 && <section className="home-shelf" aria-labelledby="home-recent">
       <div className="home-shelf-head">
         <h3 id="home-recent">Derniers ajouts</h3>
         <button type="button" className="text-button" onClick={() => openLibrary("OWNED")}>Bibliothèque</button>
       </div>
-      <div className="recent-row">
-        {recent.map(book => <LibraryTile key={book.id} b={book} onOpen={b => openBook(b.id)} />)}
-      </div>
+      {recent.length > 0
+        ? <div className="recent-row">
+          {recent.map(book => <LibraryTile key={book.id} b={book} onOpen={b => openBook(b.id)} />)}
+        </div>
+        : <p className="home-shelf-empty">Aucun livre possédé pour l'instant. Les livres que tu marques comme possédés apparaissent ici.</p>}
     </section>}
   </>;
 }
