@@ -466,3 +466,12 @@ describe("backup", () => {
     expect(again).toMatchObject({ add: [], merge: [], unchanged: 1 });
   });
 });
+
+describe("latestUpdate", () => {
+  it("returns the most recent modification date, or an empty string", async () => {
+    const { latestUpdate } = await import("../src/lib/library-view");
+    expect(latestUpdate([])).toBe("");
+    expect(latestUpdate([book({ updatedAt: "2026-01-01T00:00:00.000Z" }), book({ updatedAt: "2026-03-01T00:00:00.000Z" }), book({ updatedAt: "2026-02-01T00:00:00.000Z" })]))
+      .toBe("2026-03-01T00:00:00.000Z");
+  });
+});

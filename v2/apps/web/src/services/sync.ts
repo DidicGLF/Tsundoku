@@ -140,7 +140,7 @@ export function subscribeSync(listener: () => void): () => void {
 /** Une seule synchronisation à la fois ; sans serveur configuré, rien ne se passe. */
 let current: Promise<LibraryBook[] | null> | null = null;
 
-export function runSync(): Promise<LibraryBook[] | null> {
+export function runSync(options: { manual?: boolean } = {}): Promise<LibraryBook[] | null> {
   current ??= (async () => {
     try {
       const config = await getSyncConfig();
@@ -148,7 +148,8 @@ export function runSync(): Promise<LibraryBook[] | null> {
       setStatus({ ...status, state: "running", error: undefined });
       const transport = createHttpTransport(config.url, config.key);
       const { library, report, merged } = await syncLibrary(transport, await keyFingerprint(config.key));
-      const serverEntries = await transport.ping().then(info => info.entries, () => undefined);
+      // Le décompte du serveur n'est demandé que pour une synchronisation manuelle : une requête de moins toutes les 30 secondes.
+      const serverEntries = options.manual ? await transport.ping().then(info => info.entries, () => undefined) : status.serverEntries;
       const at = new Date().toISOString();
       try { localStorage.setItem(LAST_KEY, at); } catch { /* facultatif */ }
       setStatus({ state: "ok", at, report: { ...report, merged }, serverEntries });

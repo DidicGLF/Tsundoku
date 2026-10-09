@@ -31,7 +31,7 @@ function Shell() {
   const filters = useLibraryFilters();
   const search = useBookSearch();
 
-  useAutoSync(dbState === "ready", setLibrary);
+  useAutoSync(dbState === "ready", library, setLibrary);
 
   const { route } = nav;
 

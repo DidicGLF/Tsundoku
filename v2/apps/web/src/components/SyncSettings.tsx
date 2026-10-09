@@ -47,7 +47,7 @@ export function SyncSettings() {
       setMode("home");
       setJoinKey("");
       setMessage("Synchronisation activée. Première synchronisation…");
-      const updated = await runSync();
+      const updated = await runSync({ manual: true });
       if (updated) setLibrary(updated);
       setMessage("");
     } catch (x) {
@@ -96,7 +96,7 @@ export function SyncSettings() {
     setBusy(true);
     setMessage("");
     try {
-      const updated = await runSync();
+      const updated = await runSync({ manual: true });
       if (updated) setLibrary(updated);
     } finally {
       setBusy(false);

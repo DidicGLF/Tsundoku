@@ -18,6 +18,11 @@ export type LibrarySort = "RECENT" | "TITLE" | "AUTHOR" | "PROGRESS" | "COVER";
 export type AuthorBookFilter = "ALL" | "MISSING" | "OWNED" | "READ" | "TO_READ";
 export type AuthorBookSort = "MISSING" | "TITLE" | "DATE";
 
+/** Date de la fiche modifiée le plus récemment (chaîne vide pour une bibliothèque vide). */
+export function latestUpdate(library: LibraryBook[]): string {
+  return library.reduce((latest, book) => (book.updatedAt > latest ? book.updatedAt : latest), "");
+}
+
 /** Titre à afficher : sans la mention de responsabilité du catalogue (« / David Eddings ; [trad. …] »). */
 export function displayTitle(title: string): string {
   return title.split(/\s\/\s?/)[0].trim() || title;
