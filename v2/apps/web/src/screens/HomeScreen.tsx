@@ -14,7 +14,7 @@ export function HomeScreen({ filters }: { filters: LibraryFilters }) {
   const [nudgeHidden, setNudgeHidden] = useState(false);
   const nudge = !nudgeHidden && dbState === "ready" && shouldNudgeBackup(library.length);
 
-  const releases = useMemo(() => newReleases(library), [library]);
+  const releases = useMemo(() => newReleases(library, 4), [library]);
   const recent = useMemo(() => recentAdditions(library), [library]);
   const openBook = (id: string) => nav.push({ name: "detail", id });
 
