@@ -1,0 +1,73 @@
+name: Site (GitHub Pages)
+
+# Publie à chaque mise à jour de main : la page d'installation (racine), la politique de confidentialité
+# et la version web installable de l'application (/app/). L'APK n'est pas ici : il est dans les Releases.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "v2/site/**"
+      - "v2/apps/web/**"
+      - "v2/packages/**"
+      - "v2/pnpm-lock.yaml"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: v2/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: v2/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Version web installable (PWA) sous /Tsundoku/app/
+        working-directory: v2/apps/web
+        env:
+          VITE_PWA: "1"
+          VITE_BASE: /Tsundoku/app/
+        run: pnpm exec vite build --outDir ../../_site/app --emptyOutDir
+
+      - name: Page d'installation
+        run: cp -r site/. _site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: v2/_site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

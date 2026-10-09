@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2c323c">
+  <title>Confidentialité – Tsundoku</title>
+  <meta name="description" content="Ce que Tsundoku garde sur ton appareil, ce qu'il envoie et à qui, et comment tout effacer.">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap"><a href="./"><img src="icon.png" alt="" width="40" height="40"><b>Tsundoku</b></a></div>
+  </header>
+
+  <main class="wrap prose">
+    <div class="hero">
+      <h1>Confidentialité</h1>
+      <p class="lead">En deux mots : ta bibliothèque reste sur ton appareil. Elle n'est envoyée à notre serveur que si tu actives la synchronisation, et tu peux tout effacer d'un geste.</p>
+      <p class="updated">Dernière mise à jour : octobre 2026.</p>
+    </div>
+
+    <h2>Qui est responsable ?</h2>
+    <p>Tsundoku est un projet personnel, sans but commercial, publié par <a href="https://github.com/DidicGLF">DidicGLF</a>. Pour toute question ou demande concernant tes données, ouvre une <a href="https://github.com/DidicGLF/Tsundoku/issues">discussion sur GitHub</a>.</p>
+
+    <h2>Ce qui reste sur ton appareil</h2>
+    <ul>
+      <li>Ta bibliothèque : livres, statuts, notes, favoris, progression, auteurs suivis, jaquettes que tu ajoutes toi-même. Elle est dans une base de données de l'application, sur ton téléphone ou dans ton navigateur.</li>
+      <li>Ta clé Google Books, si tu en saisis une : elle est rangée dans le stockage sécurisé de l'appareil et n'est jamais envoyée à notre serveur.</li>
+      <li>Tu n'as pas de compte à créer. Sans synchronisation, nous ne recevons rien de toi.</li>
+    </ul>
+
+    <h2>Ce qui est envoyé à d'autres services, même sans synchronisation</h2>
+    <p>Pour trouver des livres, l'application interroge des catalogues publics. Ils reçoivent ta recherche (titre, auteur, ISBN) et l'adresse IP de ton appareil, comme n'importe quel site web.</p>
+    <table>
+      <tr><th>Service</th><td>Pourquoi</td></tr>
+      <tr><th>BnF (data.bnf.fr)</th><td>Recherche de livres et de bibliographies.</td></tr>
+      <tr><th>Open Library</th><td>Recherche, éditions et jaquettes.</td></tr>
+      <tr><th>Google Books</th><td>Seulement si tu as saisi une clé : recherche et jaquettes.</td></tr>
+      <tr><th>Amazon (images)</th><td>Jaquettes, demandées à partir de l'ISBN d'un livre de ta bibliothèque.</td></tr>
+      <tr><th>Wikipédia</th><td>Photo et présentation d'un auteur, quand tu ouvres sa page.</td></tr>
+      <tr><th>Google Play Services</th><td>Sur Android, le lecteur de code-barres est un composant de Google : l'image de la caméra est analysée sur l'appareil.</td></tr>
+    </table>
+    <p>Chacun de ces services a sa propre politique de confidentialité, que nous ne contrôlons pas.</p>
+
+    <h2>La synchronisation (facultative)</h2>
+    <p>Elle ne démarre que si tu l'actives dans Paramètres → Synchronisation, après un message d'information.</p>
+    <h3>Ce qui est envoyé</h3>
+    <p>Chaque livre de ta bibliothèque avec ses informations (titre, auteurs, ISBN, éditeur, collection, jaquette, statut, note, favori, dates, progression), tes auteurs suivis, et les livres supprimés récemment (marqués comme tels).</p>
+    <h3>Comment tu es identifié</h3>
+    <p>Par une clé secrète aléatoire, générée sur ton appareil. Il n'y a ni nom, ni adresse e-mail, ni mot de passe. Le serveur ne conserve que l'empreinte de cette clé, la date de première utilisation et la date de dernière activité. Pour lier un autre appareil, un code court (valable 5 minutes, à usage unique) chiffre ta clé avant qu'elle transite par le serveur, qui ne la voit jamais.</p>
+    <h3>Ce que le serveur peut voir</h3>
+    <p>Le contenu de ta bibliothèque est stocké sur le serveur <strong>sans chiffrement de bout en bout</strong> : la personne qui l'administre pourrait techniquement le lire. Elle s'engage à ne s'en servir que pour faire fonctionner la synchronisation, et à n'utiliser que des chiffres globaux (nombre d'utilisateurs, de livres) pour suivre le service. Les échanges avec le serveur sont chiffrés (HTTPS).</p>
+    <h3>Où</h3>
+    <p>Le serveur est un serveur personnel du responsable du projet, rendu accessible sur Internet par le service Tailscale Funnel. Le chiffrement HTTPS est établi entre ton appareil et ce serveur : Tailscale relaie les échanges sans pouvoir en lire le contenu.</p>
+    <h3>Combien de temps</h3>
+    <p>Tant que tu utilises la synchronisation. Les comptes inactifs depuis longtemps peuvent être supprimés.</p>
+
+    <h2>Effacer tes données</h2>
+    <ul>
+      <li><strong>Du serveur :</strong> Paramètres → Synchronisation → Options → « Effacer mes données du serveur ». Tout est supprimé immédiatement et définitivement. Tes autres appareils gardent leurs livres mais ne se synchronisent plus.</li>
+      <li><strong>De l'appareil :</strong> Paramètres → « Supprimer toute ma bibliothèque » (restaurable pendant 30 jours), ou désinstalle l'application / efface les données du site.</li>
+      <li><strong>Si tu as perdu ta clé sur tous tes appareils :</strong> le serveur ne peut pas savoir à qui appartiennent les données, qui deviennent inaccessibles. Elles sont supprimées avec les comptes inactifs.</li>
+    </ul>
+
+    <h2>Tes droits</h2>
+    <p>Tu peux demander l'accès, la rectification ou l'effacement de tes données, ou t'opposer à leur traitement. Les outils ci-dessus le font sans rien demander à personne ; pour le reste, écris-nous sur GitHub. Tu peux aussi déposer une réclamation auprès de la CNIL (cnil.fr).</p>
+    <p>L'application ne contient ni publicité, ni outil de mesure d'audience, ni traceur. La page d'accueil du site interroge GitHub pour afficher le numéro de la dernière version.</p>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <a href="./">Accueil</a> ·
+      <a href="https://github.com/DidicGLF/Tsundoku">Code source</a>
+    </div>
+  </footer>
+</body>
+</html>

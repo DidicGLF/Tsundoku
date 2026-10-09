@@ -23,3 +23,6 @@ packages/sync-server/release/
 
 # APK de diffusion
 release/
+
+# Site construit par le workflow Pages
+_site/

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#2c323c">
+  <title>Tsundoku – ta bibliothèque, partout</title>
+  <meta name="description" content="Tsundoku suit tes auteurs, te montre ce que tu possèdes et ce qu'il te manque, et garde ta bibliothèque synchronisée entre ton téléphone et ton ordinateur.">
+  <meta property="og:title" content="Tsundoku">
+  <meta property="og:description" content="Suis tes auteurs, vois ce que tu possèdes et ce qu'il te manque.">
+  <meta property="og:image" content="icon-512.png">
+  <link rel="icon" type="image/png" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap"><a href="./"><img src="icon.png" alt="" width="40" height="40"><b>Tsundoku</b></a></div>
+  </header>
+
+  <main class="wrap">
+    <div class="hero">
+      <h1>Ta bibliothèque, disponible partout.</h1>
+      <p class="lead">Suis les auteurs que tu aimes, vois d'un coup d'œil ce que tu possèdes et ce qu'il te manque. 積ん読 : ces livres qui attendent d'être lus.</p>
+    </div>
+
+    <ul class="features">
+      <li><strong>Suivre un auteur</strong><span>Toute sa bibliographie, avec les jaquettes, et les nouveautés repérées.</span></li>
+      <li><strong>Scanner un livre</strong><span>Le code-barres de ton exemplaire suffit pour le retrouver, avec la bonne édition.</span></li>
+      <li><strong>Sur tous tes appareils</strong><span>Une synchronisation facultative entre ton téléphone et ton ordinateur, sans compte.</span></li>
+    </ul>
+
+    <section id="installer">
+      <h2>Installer Tsundoku</h2>
+      <div class="cards">
+        <article class="card" id="android">
+          <h3>Android</h3>
+          <p>L'application, à installer à la main : elle n'est pas sur le Play Store.</p>
+          <a class="button" id="apk" href="https://github.com/DidicGLF/Tsundoku/releases/latest/download/tsundoku.apk">Télécharger l'APK</a>
+          <p id="version" aria-live="polite"></p>
+          <ol class="steps">
+            <li>Ouvre le fichier téléchargé.</li>
+            <li>Android te demande d'autoriser l'installation depuis ce navigateur : accepte (Paramètres → « Autoriser depuis cette source »).</li>
+            <li>Appuie sur « Installer ». Si Play Protect affiche un avertissement parce que l'application ne vient pas du Play Store, choisis « Installer quand même ».</li>
+          </ol>
+        </article>
+
+        <article class="card" id="web">
+          <h3>Ordinateur et iPhone</h3>
+          <p>La version web, installable comme une application. Elle fonctionne aussi sans connexion.</p>
+          <a class="button" href="app/">Ouvrir l'application</a>
+          <ol class="steps">
+            <li><strong>Chrome ou Edge :</strong> clique sur l'icône « Installer » à droite de la barre d'adresse (ou menu → « Installer Tsundoku »).</li>
+            <li><strong>iPhone et iPad (Safari) :</strong> bouton Partager, puis « Sur l'écran d'accueil ».</li>
+          </ol>
+          <p>Sur ordinateur, tes livres sont conservés par le navigateur : active la synchronisation (Paramètres) pour les retrouver partout et les mettre à l'abri.</p>
+        </article>
+      </div>
+      <p class="note">Tsundoku est un projet personnel gratuit. Ta bibliothèque reste sur ton appareil ; elle ne part sur un serveur que si tu actives la synchronisation. Le détail est dans la <a href="privacy.html">politique de confidentialité</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <a href="privacy.html">Confidentialité</a> ·
+      <a href="https://github.com/DidicGLF/Tsundoku">Code source</a> ·
+      <a href="https://github.com/DidicGLF/Tsundoku/issues">Signaler un problème</a>
+    </div>
+  </footer>
+
+  <script>
+    // Met en avant la carte qui correspond à l'appareil, et affiche la version publiée (facultatif : sans réseau, rien ne change).
+    (function () {
+      var android = /android/i.test(navigator.userAgent);
+      document.getElementById(android ? "android" : "web").classList.add("highlight");
+      if (!android) {
+        var cards = document.querySelector(".cards");
+        cards.insertBefore(document.getElementById("web"), document.getElementById("android"));
+      }
+      fetch("https://api.github.com/repos/DidicGLF/Tsundoku/releases/latest", { headers: { Accept: "application/vnd.github+json" } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (release) {
+          if (!release || !release.tag_name) return;
+          var asset = (release.assets || []).filter(function (a) { return /\.apk$/.test(a.name); })[0];
+          var size = asset ? " · " + Math.round(asset.size / 1048576) + " Mo" : "";
+          document.getElementById("version").textContent = "Version " + release.tag_name.replace(/^v/, "") + size;
+        })
+        .catch(function () {});
+    })();
+  </script>
+</body>
+</html>

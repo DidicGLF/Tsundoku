@@ -97,3 +97,23 @@ Test de bout en bout contre un vrai PostgreSQL temporaire :
   `bash packages/sync-server/test/run-with-postgres.sh` (voir plus haut).
 - Les tests ont été vérifiés en cassant volontairement le code (suppressions ignorées, serveur qui accepte une version plus
   ancienne, test de fraîcheur retiré, envoi supprimé, auteurs suivis ignorés) : chacun de ces défauts fait échouer la suite.
+
+## Diffusion : APK, version web et page d'installation
+
+- **APK Android** (`scripts/release-apk.sh`) : `nix-shell --run 'bash scripts/release-apk.sh'` construit et vérifie
+  `release/tsundoku-<version>.apk` (+ `release/tsundoku.apk`, nom fixe pour le lien de la page). La version vient de
+  `apps/web/package.json` (0.2.0 → versionCode 200 : à augmenter à chaque diffusion). Il est signé avec la clé
+  `~/.tsundoku-signing/` (`tsundoku-release.jks` + `signing.properties`), **hors du dépôt et à sauvegarder** :
+  sans elle, les utilisateurs ne pourraient plus mettre l'application à jour (il faudrait la désinstaller). Un APK de
+  debug ne peut pas être mis à jour par un APK release (signatures différentes) : désinstaller d'abord, après avoir exporté
+  ou synchronisé la bibliothèque.
+- **Publier une version** : mettre à jour la version, lancer le script, puis sur GitHub → Releases → « Draft a new
+  release », tag `v0.2.0`, y glisser `release/tsundoku.apk`. Le lien `…/releases/latest/download/tsundoku.apk` de la page
+  d'installation pointe alors vers cette version.
+- **Version web (PWA) et page d'installation** : `.github/workflows/pages.yml` les construit et les publie sur GitHub Pages
+  (`https://didicglf.github.io/Tsundoku/` : page d'installation ; `/app/` : l'application ; `/privacy.html`) à chaque
+  push sur `main`. Réglage unique : Settings → Pages → Source : **GitHub Actions**. Le contenu de la page est dans `site/`.
+  La version web est construite avec `VITE_PWA=1 VITE_BASE=/Tsundoku/app/` (service worker, mode hors ligne) ; l'APK, sans
+  service worker.
+- `site/sw.js` est un service worker de nettoyage : l'ancienne V1 de Tsundoku (publiée à cette adresse avant la V2) avait
+  enregistré un service worker qui garde l'ancien site en cache ; celui-ci le supprime et se désinscrit.
