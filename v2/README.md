@@ -84,3 +84,16 @@ l'écran propose de la saisir). Installation du serveur (conteneur LXC + Tailsca
 
 Test de bout en bout contre un vrai PostgreSQL temporaire :
 `nix-shell -p nodejs_22 pnpm postgresql --run 'bash packages/sync-server/test/run-with-postgres.sh'`.
+
+### Tests de la synchronisation
+
+- `pnpm test` : scénarios précis (`packages/database/test/sync.test.ts`) et **simulation de convergence**
+  (`apps/web/test/sync-convergence.test.ts`) : 3 appareils + 1 appareil neuf font 120 à 600 opérations au hasard
+  (même livre ajouté sur plusieurs appareils, modifications concurrentes, suppressions, fusions de doublons, auteurs suivis),
+  se synchronisent dans un ordre quelconque, puis doivent tous contenir exactement ce que dit un modèle de référence
+  (la version la plus récemment écrite de chaque fiche), sans qu'une synchronisation de plus change quoi que ce soit.
+  40 graines + un scénario de 600 opérations.
+- Le même scénario tourne à travers le vrai serveur HTTP et un vrai PostgreSQL (graines 101 à 106) avec
+  `bash packages/sync-server/test/run-with-postgres.sh` (voir plus haut).
+- Les tests ont été vérifiés en cassant volontairement le code (suppressions ignorées, serveur qui accepte une version plus
+  ancienne, test de fraîcheur retiré, envoi supprimé, auteurs suivis ignorés) : chacun de ces défauts fait échouer la suite.

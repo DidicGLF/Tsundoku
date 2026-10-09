@@ -1,7 +1,8 @@
 import type { AddressInfo } from "node:net";
 import pg from "pg";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { claimPairing, createHttpTransport, runMigrations, SqliteLibraryRepository, syncOnce, SyncServerError } from "../../database/src/index";
+import { runSyncFuzz } from "../../../apps/web/test/helpers/sync-fuzz";
 import { generatePairingCode, openKey, pairingIdOf, sealKey } from "../../../apps/web/src/lib/pairing";
 import { createApp, DEFAULT_LIMITS, prepareDatabase, type Limits } from "../src/app";
 import { createTestAdapter } from "../../database/test/sqljs-adapter";
@@ -251,4 +252,20 @@ describe.skipIf(!databaseUrl)("serveur de synchronisation (PostgreSQL réel)", (
     await expect(claimPairing(strict, "a".repeat(64))).rejects.toThrow(/inconnu ou expiré/);
     await expect(claimPairing(strict, "a".repeat(64))).rejects.toThrow(/Trop de tentatives/);
   });
+
+  it.each([101, 102, 103, 104, 105, 106])("graine %i : 3 appareils + 1 neuf convergent à travers le vrai serveur HTTP + PostgreSQL", async seed => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const server = await start({ requestsPerMinute: 100000 });
+      const key = `fuzz-${seed}-`.padEnd(43, "z");
+      const transports = [0, 1, 2, 3].map(() => createHttpTransport(server, key));
+      const result = await runSyncFuzz({ seed, steps: 100, transports });
+      expect(result.liveEntries).toBeGreaterThan(0);
+      // le serveur contient bien la même chose que les appareils
+      const page = await transports[0].pull(0, 1000);
+      expect(page.entries.filter(entry => !(entry as { deletedAt?: string }).deletedAt)).toHaveLength(result.liveEntries);
+    } finally {
+      vi.useRealTimers();
+    }
+  }, 120000);
 });
