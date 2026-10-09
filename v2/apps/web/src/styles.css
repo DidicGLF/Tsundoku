@@ -2254,3 +2254,13 @@ select {
 .danger-text {
   color: var(--danger, #b3261e);
 }
+
+.button-link {
+  display: inline-block;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}

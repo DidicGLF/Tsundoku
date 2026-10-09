@@ -30,6 +30,8 @@ jobs:
         working-directory: v2
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tous les tags : la version affichée est celle du dernier tag (v2/scripts/version.mjs)
 
       - uses: pnpm/action-setup@v4
         with:

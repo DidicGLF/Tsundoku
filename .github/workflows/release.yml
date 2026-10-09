@@ -1,0 +1,97 @@
+name: Release (APK signé)
+
+# « git tag v0.3.0 && git push origin v0.3.0 » : construit l'APK signé, vérifie sa signature, crée la Release GitHub
+# avec l'APK joint et republie le site avec la même version. Un tag avec un tiret (v0.3.0-beta.1) donne une pré-version
+# que « la dernière version » ignore : pratique pour essayer ce workflow sans toucher à ce que voient les utilisateurs.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions:
+  contents: write   # créer la Release
+  actions: write    # relancer la publication du site
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      APP_VERSION: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        working-directory: v2
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: v2/package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: v2/pnpm-lock.yaml
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;36.0.0"
+
+      - name: Version
+        run: |
+          echo "Tag ${GITHUB_REF_NAME} -> version $(node scripts/version.mjs) (versionCode $(node scripts/version.mjs --code))"
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Clé de signature (secrets GitHub)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          [ -n "$KEYSTORE_BASE64" ] && [ -n "$SIGNING_PASSWORD" ] || { echo "::error::Secrets SIGNING_KEYSTORE_BASE64 et SIGNING_PASSWORD manquants (voir README)"; exit 1; }
+          dir="$RUNNER_TEMP/signing"
+          mkdir -p "$dir"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$dir/tsundoku-release.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=tsundoku\nkeyPassword=%s\n' "$dir/tsundoku-release.jks" "$SIGNING_PASSWORD" "$SIGNING_PASSWORD" > "$dir/signing.properties"
+          echo "TSUNDOKU_SIGNING_DIR=$dir" >> "$GITHUB_ENV"
+
+      - name: Construire l'APK
+        run: |
+          pnpm build
+          (cd apps/web && npx cap sync android)
+          (cd apps/web/android && ./gradlew --no-daemon assembleRelease)
+
+      - name: Vérifier la signature (doit être la clé de Tsundoku)
+        run: |
+          apk=apps/web/android/app/build/outputs/apk/release/app-release.apk
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          "$apksigner" verify --verbose --print-certs "$apk"
+          expected="$(tr -d '[:space:]' < scripts/signing-fingerprint.txt)"
+          actual="$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+          [ "$actual" = "$expected" ] || { echo "::error::Empreinte de la clé inattendue ($actual)"; exit 1; }
+          mkdir -p release && cp "$apk" release/tsundoku.apk
+          sha256sum release/tsundoku.apk
+
+      - name: Créer la Release
+        run: |
+          version="$(node scripts/version.mjs)"
+          flags=""
+          case "$version" in *-*) flags="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" release/tsundoku.apk --title "Tsundoku $version" --generate-notes $flags
+
+      - name: Republier le site avec cette version
+        if: ${{ !contains(github.ref_name, '-') }}
+        run: gh workflow run pages.yml --ref main

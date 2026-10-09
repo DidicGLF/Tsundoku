@@ -100,16 +100,34 @@ Test de bout en bout contre un vrai PostgreSQL temporaire :
 
 ## Diffusion : APK, version web et page d'installation
 
-- **APK Android** (`scripts/release-apk.sh`) : `nix-shell --run 'bash scripts/release-apk.sh'` construit et vérifie
-  `release/tsundoku-<version>.apk` (+ `release/tsundoku.apk`, nom fixe pour le lien de la page). La version vient de
-  `apps/web/package.json` (0.2.0 → versionCode 200 : à augmenter à chaque diffusion). Il est signé avec la clé
-  `~/.tsundoku-signing/` (`tsundoku-release.jks` + `signing.properties`), **hors du dépôt et à sauvegarder** :
+**Publier une version = poser un tag.** Dans VS Code (palette de commandes → « Git: Create Tag » puis « Git: Push Tags »)
+ou en ligne de commande :
+
+```bash
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+Le workflow `.github/workflows/release.yml` fait le reste : tests, APK signé, vérification de la signature
+(l'empreinte doit être celle de `scripts/signing-fingerprint.txt`), Release GitHub avec `tsundoku.apk` joint et notes de
+version générées, puis republication du site avec la même version. Un tag avec un tiret (`v0.3.0-beta.1`) crée une
+**pré-version** : la page d'installation et le message « nouvelle version » l'ignorent, c'est le moyen d'essayer.
+
+- **La version vient des tags git** (`scripts/version.mjs`) : plus rien à modifier à la main. `versionName` = le tag,
+  `versionCode` = majeur×10000 + mineur×100 + correctif (0.3.0 → 300, 0.2.1 → 201 ; au plus 99 correctifs par version mineure).
+  Elle est affichée dans Paramètres → À propos, et l'application Android la compare chaque jour à la dernière Release
+  GitHub pour proposer la mise à jour (`services/updateCheck.ts`). Hors tag, une construction locale porte `X.Y.Z-dev.N`.
+- **Réglage unique (secrets GitHub)** : le workflow signe avec ta clé, enregistrée dans les secrets du dépôt
+  (`SIGNING_KEYSTORE_BASE64` et `SIGNING_PASSWORD`). Avec la CLI GitHub : `gh auth login` puis
+  `bash scripts/set-signing-secrets.sh` (rien n'est affiché). Sans elle : Settings → Secrets and variables → Actions → New
+  repository secret ; le premier est `base64 -w0 ~/.tsundoku-signing/tsundoku-release.jks`, le second le `storePassword`
+  de `~/.tsundoku-signing/signing.properties`.
+- **Clé de signature** : `~/.tsundoku-signing/` (`tsundoku-release.jks` + `signing.properties`), hors du dépôt. **À sauvegarder** :
   sans elle, les utilisateurs ne pourraient plus mettre l'application à jour (il faudrait la désinstaller). Un APK de
-  debug ne peut pas être mis à jour par un APK release (signatures différentes) : désinstaller d'abord, après avoir exporté
-  ou synchronisé la bibliothèque.
-- **Publier une version** : mettre à jour la version, lancer le script, puis sur GitHub → Releases → « Draft a new
-  release », tag `v0.2.0`, y glisser `release/tsundoku.apk`. Le lien `…/releases/latest/download/tsundoku.apk` de la page
-  d'installation pointe alors vers cette version.
+  debug ne peut pas être mis à jour par un APK release (signatures différentes) : désinstaller d'abord, après avoir
+  synchronisé ou exporté la bibliothèque.
+- **Essai local** : `nix-shell --run 'bash scripts/release-apk.sh'` construit et vérifie `release/tsundoku-<version>.apk`
+  (`APP_VERSION=v0.3.0` pour forcer une version).
 - **Version web (PWA) et page d'installation** : `.github/workflows/pages.yml` les construit et les publie sur GitHub Pages
   (`https://didicglf.github.io/Tsundoku/` : page d'installation ; `/app/` : l'application ; `/privacy.html`) à chaque
   push sur `main`. Réglage unique : Settings → Pages → Source : **GitHub Actions**. Le contenu de la page est dans `site/`.

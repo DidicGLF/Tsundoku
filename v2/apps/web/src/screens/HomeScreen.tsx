@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { countStatus, type LibraryFilter } from "../lib/library-view";
+import { UpdateBanner } from "../components/UpdateBanner";
 import { dismissBackupNudge, shouldNudgeBackup } from "../services/backup";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
@@ -16,6 +17,7 @@ export function HomeScreen({ filters }: { filters: LibraryFilters }) {
     <button onClick={() => openLibrary(filter)}><strong>{count}</strong><span>{label}</span></button>;
 
   return <>
+    <UpdateBanner />
     {nudge && <section className="backup-nudge" role="status">
       <p>Pense à sauvegarder ta bibliothèque : un export prend une seconde.</p>
       <div>

@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
+import { appVersion } from "../../scripts/version.mjs";
 
 /*
  * Deux constructions à partir du même code :
@@ -11,6 +12,8 @@ const pwa = process.env.VITE_PWA === "1";
 
 export default defineConfig({
   base: process.env.VITE_BASE ?? "/",
+  // Numéro de version affiché dans l'application et comparé à la dernière Release (voir scripts/version.mjs).
+  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
   plugins: [
     react(),
     ...(pwa ? [VitePWA({

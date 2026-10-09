@@ -1,8 +1,10 @@
 apply plugin: 'com.android.application'
 
-// Version de l'application = celle de apps/web/package.json (0.2.0 -> versionCode 200) : une seule source, un code qui augmente à chaque version.
-def appVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
-def versionParts = appVersion.tokenize('.').collect { it.toInteger() }
+// Version de l'application : APP_VERSION (fixée par le workflow de release depuis le tag git, ou par scripts/release-apk.sh),
+// sinon apps/web/package.json. versionCode = majeur*10000 + mineur*100 + correctif (0.2.1 -> 201), identique à scripts/version.mjs.
+def rawVersion = System.getenv('APP_VERSION')?.replaceFirst('^v', '') ?: new groovy.json.JsonSlurper().parse(file('../../package.json')).version
+def appVersion = rawVersion
+def versionParts = rawVersion.split('[-+]')[0].tokenize('.').collect { it.toInteger() }
 
 // Clé de signature des versions diffusées : hors du dépôt (jamais commitée). Sans elle, la version release n'est pas signée.
 def signingDir = System.getenv('TSUNDOKU_SIGNING_DIR') ?: "${System.getProperty('user.home')}/.tsundoku-signing"

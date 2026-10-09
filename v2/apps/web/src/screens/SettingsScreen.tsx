@@ -3,6 +3,7 @@ import type { BookSearchLanguage } from "../services/bookSearch";
 import { deleteGoogleBooksApiKey, hasGoogleBooksApiKey, saveGoogleBooksApiKey } from "../services/credentials";
 import { exportBackup, lastBackupAt, previewImport } from "../services/backup";
 import { plural } from "../lib/library-view";
+import { APP_VERSION } from "../lib/app-version";
 import { DangerZone } from "../components/DangerZone";
 import { DeletedBooks } from "../components/DeletedBooks";
 import { InstallApp } from "../components/InstallApp";
@@ -158,5 +159,14 @@ export function SettingsScreen() {
       {message && <p className="credential-message">{message}</p>}
     </div>
     <DangerZone />
+    <div className="settings-section settings-divider">
+      <p className="eyebrow">À propos</p>
+      <h2>Tsundoku {APP_VERSION}</h2>
+      <p className="settings-help">
+        <a href="https://didicglf.github.io/Tsundoku/" target="_blank" rel="noreferrer">Page d'installation</a> ·{" "}
+        <a href="https://didicglf.github.io/Tsundoku/privacy.html" target="_blank" rel="noreferrer">Confidentialité</a> ·{" "}
+        <a href="https://github.com/DidicGLF/Tsundoku" target="_blank" rel="noreferrer">Code source</a>
+      </p>
+    </div>
   </section>;
 }
