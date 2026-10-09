@@ -70,11 +70,16 @@ fois (quelques secondes, réseau nécessaire). Seul un EAN-13 en 978/979 à clé
 
 ## Synchronisation entre appareils
 
-Chaque appareil garde sa base complète (il marche hors ligne) et se synchronise avec un petit serveur personnel
-(`packages/sync-server` : Node + PostgreSQL, un jeton secret). Unité échangée : la fiche de bibliothèque entière ;
-la version modifiée en dernier gagne, les suppressions se propagent. Installation sur un conteneur LXC Proxmox
-avec Tailscale pour l'HTTPS : voir `packages/sync-server/DEPLOY.md`. Dans l'app : Paramètres → Synchronisation.
-Les secrets (clé Google, jeton) ne sont jamais synchronisés.
+Chaque appareil garde sa base complète (il marche hors ligne) et se synchronise avec le serveur de l'application
+(`packages/sync-server` : Node + PostgreSQL). L'utilisateur n'installe rien d'autre que l'app : « Activer la
+synchronisation » génère une clé secrète aléatoire (stockage sécurisé) qui identifie sa bibliothèque ; le serveur ne
+garde que son empreinte, pas de compte ni d'e-mail. Un autre appareil rejoint la même bibliothèque en scannant le QR
+code (ou en collant la clé). Unité échangée : la fiche de bibliothèque entière ; la version modifiée en dernier
+gagne, les suppressions se propagent. L'utilisateur peut tout effacer du serveur depuis l'app.
+Les secrets (clé Google, clé de synchronisation) ne sont jamais synchronisés.
+
+L'adresse du serveur est intégrée au build : `apps/web/.env.production` avec `VITE_SYNC_URL=https://…` (sans elle,
+l'écran propose de la saisir). Installation du serveur (conteneur LXC + Tailscale Funnel) : `packages/sync-server/DEPLOY.md`.
 
 Test de bout en bout contre un vrai PostgreSQL temporaire :
 `nix-shell -p nodejs_22 pnpm postgresql --run 'bash packages/sync-server/test/run-with-postgres.sh'`.

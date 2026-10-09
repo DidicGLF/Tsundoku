@@ -1,9 +1,9 @@
-import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { BookSearchLanguage } from "../services/bookSearch";
 import { deleteGoogleBooksApiKey, hasGoogleBooksApiKey, saveGoogleBooksApiKey } from "../services/credentials";
 import { exportBackup, lastBackupAt, previewImport } from "../services/backup";
 import { plural } from "../lib/library-view";
-import { clearSyncConfig, getSyncConfig, getSyncStatus, runSync, saveSyncConfig, subscribeSync } from "../services/sync";
+import { SyncSettings } from "../components/SyncSettings";
 import { useLibrary } from "../state/LibraryProvider";
 import { usePreferences } from "../state/PreferencesProvider";
 
@@ -17,55 +17,6 @@ export function SettingsScreen() {
   const [backupMessage, setBackupMessage] = useState("");
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupAt, setBackupAt] = useState(lastBackupAt());
-
-  const [syncUrl, setSyncUrl] = useState("");
-  const [syncToken, setSyncToken] = useState("");
-  const [syncConfigured, setSyncConfigured] = useState(false);
-  const [syncBusy, setSyncBusy] = useState(false);
-  const [syncMessage, setSyncMessage] = useState("");
-  const syncStatus = useSyncExternalStore(subscribeSync, getSyncStatus);
-
-  useEffect(() => {
-    void getSyncConfig().then(config => { if (config) { setSyncUrl(config.url); setSyncConfigured(true); } }, () => undefined);
-  }, []);
-
-  async function saveSync(e: FormEvent) {
-    e.preventDefault();
-    setSyncBusy(true);
-    setSyncMessage("");
-    try {
-      await saveSyncConfig({ url: syncUrl, token: syncToken });
-      setSyncToken("");
-      setSyncConfigured(true);
-      setSyncMessage("Connexion réussie. Première synchronisation…");
-      const updated = await runSync();
-      if (updated) setLibrary(updated);
-      setSyncMessage("");
-    } catch (x) {
-      setSyncMessage(x instanceof Error ? x.message : "Connexion impossible.");
-    } finally {
-      setSyncBusy(false);
-    }
-  }
-
-  async function syncNow() {
-    setSyncBusy(true);
-    setSyncMessage("");
-    try {
-      const updated = await runSync();
-      if (updated) setLibrary(updated);
-    } finally {
-      setSyncBusy(false);
-    }
-  }
-
-  async function disableSync() {
-    if (!window.confirm("Désactiver la synchronisation sur cet appareil ?\n\nTes livres restent ici, et sur le serveur. Tu pourras la réactiver plus tard.")) return;
-    await clearSyncConfig();
-    setSyncConfigured(false);
-    setSyncUrl("");
-    setSyncMessage("Synchronisation désactivée.");
-  }
 
   useEffect(() => {
     void hasGoogleBooksApiKey().then(setConfigured).catch(err => console.error("Credential storage initialization failed:", err));
@@ -135,43 +86,8 @@ export function SettingsScreen() {
     }
   }
 
-  const syncSummary = syncStatus.state === "running" ? "Synchronisation en cours…"
-    : syncStatus.state === "error" ? `Dernière tentative échouée : ${syncStatus.error}`
-    : syncStatus.at ? `Dernière synchronisation : ${new Date(syncStatus.at).toLocaleString("fr-FR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}${
-        syncStatus.report ? ` (${syncStatus.report.pushed} ${plural(syncStatus.report.pushed, "envoyé")}, ${syncStatus.report.received} ${plural(syncStatus.report.received, "reçu")})` : ""}.`
-    : "Pas encore synchronisé.";
-
   return <section className="settings-card">
-    <div className="settings-section">
-      <div className="settings-heading">
-        <div>
-          <p className="eyebrow">Mes appareils</p>
-          <h2>Synchronisation</h2>
-        </div>
-        <span className={syncConfigured ? "credential-status configured" : "credential-status"}>
-          {syncConfigured ? "● Activée" : "○ Désactivée"}
-        </span>
-      </div>
-      <p className="settings-help">
-        Garde la même bibliothèque sur tous tes appareils, à travers ton propre serveur : statuts, notes, favoris, auteurs suivis.
-        Elle se fait au lancement, au retour dans l'application et quand tu la quittes. Le jeton reste dans le stockage sécurisé de l'appareil.
-      </p>
-      <form className="credential-form" onSubmit={saveSync}>
-        <label>Adresse du serveur
-          <input type="url" inputMode="url" autoComplete="off" autoCapitalize="off" value={syncUrl} onChange={e => setSyncUrl(e.target.value)} placeholder="https://tsundoku.mon-reseau.ts.net" />
-        </label>
-        <label>{syncConfigured ? "Remplacer le jeton" : "Jeton"}
-          <input type="password" autoComplete="off" value={syncToken} onChange={e => setSyncToken(e.target.value)} placeholder={syncConfigured ? "Saisir le nouveau jeton…" : "Copié depuis le serveur…"} />
-        </label>
-        <div className="credential-actions">
-          <button disabled={syncBusy || dbState !== "ready" || !syncUrl.trim() || !syncToken.trim()}>{syncBusy ? "Connexion…" : "Tester et activer"}</button>
-          {syncConfigured && <button type="button" className="secondary-inline" disabled={syncBusy} onClick={() => void syncNow()}>Synchroniser maintenant</button>}
-          {syncConfigured && <button type="button" className="danger-button" disabled={syncBusy} onClick={() => void disableSync()}>Désactiver</button>}
-        </div>
-      </form>
-      {syncConfigured && <p className="settings-help" role="status">{syncSummary}</p>}
-      {syncMessage && <p className="credential-message" role="status">{syncMessage}</p>}
-    </div>
+    <SyncSettings />
     <div className="settings-section settings-divider">
       <p className="eyebrow">Mes données</p>
       <h2>Sauvegarde</h2>

@@ -23,6 +23,7 @@
     "@tsundoku/book-sources": "workspace:*",
     "@tsundoku/credentials": "workspace:*",
     "@tsundoku/database": "workspace:*",
+    "qrcode-generator": "^2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sql.js": "^1.13.0"

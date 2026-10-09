@@ -1,16 +1,23 @@
 import { createHttpTransport, SyncServerError, type SyncReport } from "@tsundoku/database";
+import { generateSyncKey, parseSyncKey } from "../lib/sync-key";
 import { deleteSecret, getSecret, setSecret } from "./credentials";
 import { syncLibrary, type LibraryBook } from "./library";
 
 /*
- * Synchronisation avec le serveur de l'utilisateur. L'adresse est un réglage ordinaire ; le jeton est un secret
- * (stockage sécurisé sur Android) qui ne quitte jamais l'appareil, hors des requêtes vers ce serveur.
+ * Synchronisation avec le serveur de l'application. L'utilisateur n'a rien à configurer : activer la synchronisation
+ * génère une clé secrète aléatoire (rangée dans le stockage sécurisé), qui identifie sa bibliothèque sur le serveur.
+ * Un autre appareil rejoint la même bibliothèque en saisissant ou en scannant cette clé. Elle ne quitte l'appareil
+ * que dans les requêtes vers le serveur.
  */
 const URL_KEY = "tsundoku.sync.url";
+const ENABLED_KEY = "tsundoku.sync.enabled";
 const LAST_KEY = "tsundoku.sync.last";
-const TOKEN_SECRET = "syncToken";
+const KEY_SECRET = "syncKey";
 
-export interface SyncConfig { url: string; token: string }
+export interface SyncConfig { url: string; key: string }
+
+/** Adresse du serveur fournie avec l'application (vide si la version n'en a pas). */
+export const DEFAULT_SERVER_URL: string = (import.meta.env.VITE_SYNC_URL ?? "").trim();
 
 /** Adresse normalisée : HTTPS obligatoire (Android bloque le HTTP depuis l'application), sauf en local pour le développement. */
 export function normalizeServerUrl(value: string): string {
@@ -22,26 +29,59 @@ export function normalizeServerUrl(value: string): string {
   return `${parsed.origin}${parsed.pathname === "/" ? "" : parsed.pathname}`;
 }
 
+const read = (name: string): string | null => { try { return localStorage.getItem(name); } catch { return null; } };
+
+/** Adresse utilisée : celle choisie dans les réglages avancés, sinon celle de l'application. */
+export function serverUrl(): string { return read(URL_KEY) || DEFAULT_SERVER_URL; }
+export const isSyncEnabled = (): boolean => read(ENABLED_KEY) === "1";
+
+export async function getSyncKey(): Promise<string | null> {
+  return getSecret(KEY_SECRET).catch(() => null);
+}
+
 export async function getSyncConfig(): Promise<SyncConfig | null> {
-  let url: string | null = null;
-  try { url = localStorage.getItem(URL_KEY); } catch { /* pas de stockage */ }
-  const token = await getSecret(TOKEN_SECRET).catch(() => null);
-  return url && token ? { url, token } : null;
+  const url = serverUrl();
+  const key = isSyncEnabled() ? await getSyncKey() : null;
+  return url && key ? { url, key } : null;
 }
 
-export async function saveSyncConfig(config: SyncConfig): Promise<SyncConfig> {
-  const url = normalizeServerUrl(config.url);
-  const token = config.token.trim();
-  if (token.length < 16) throw new Error("Le jeton est trop court : copie-le en entier depuis le serveur.");
-  await createHttpTransport(url, token).ping();
-  localStorage.setItem(URL_KEY, url);
-  await setSecret(TOKEN_SECRET, token);
-  return { url, token };
+/**
+ * Active la synchronisation. Sans `existingKey`, une nouvelle bibliothèque est créée sur le serveur ;
+ * avec, cet appareil rejoint celle de l'autre appareil. `customUrl` : adresse de serveur différente (réglages avancés).
+ */
+export async function enableSync(options: { existingKey?: string; customUrl?: string } = {}): Promise<string> {
+  const url = options.customUrl?.trim() ? normalizeServerUrl(options.customUrl) : serverUrl();
+  if (!url) throw new Error("Aucune adresse de serveur : renseigne-la dans les réglages avancés.");
+  let key: string;
+  if (options.existingKey !== undefined) {
+    const parsed = parseSyncKey(options.existingKey);
+    if (!parsed) throw new Error("Cette clé n'est pas valide : copie-la en entier depuis l'autre appareil.");
+    key = parsed;
+  } else {
+    key = (await getSyncKey()) ?? generateSyncKey();
+  }
+  await createHttpTransport(url, key).ping();
+  try {
+    if (options.customUrl?.trim()) localStorage.setItem(URL_KEY, url);
+    localStorage.setItem(ENABLED_KEY, "1");
+  } catch { /* le stockage local est requis : sans lui, la synchro ne tiendrait pas au redémarrage */ throw new Error("Stockage de l'appareil indisponible."); }
+  await setSecret(KEY_SECRET, key);
+  return key;
 }
 
-export async function clearSyncConfig(): Promise<void> {
-  try { localStorage.removeItem(URL_KEY); localStorage.removeItem(LAST_KEY); } catch { /* rien à effacer */ }
-  await deleteSecret(TOKEN_SECRET);
+/** Arrête la synchronisation sur cet appareil ; la clé est conservée pour pouvoir la réactiver. */
+export function disableSync(): void {
+  try { localStorage.removeItem(ENABLED_KEY); } catch { /* rien à effacer */ }
+  setStatus({ state: "idle", at: status.at });
+}
+
+/** Efface la bibliothèque du serveur puis la clé de cet appareil. Les autres appareils gardent leurs livres mais ne se synchronisent plus. */
+export async function deleteServerData(): Promise<void> {
+  const config = await getSyncConfig();
+  const key = config?.key ?? await getSyncKey();
+  if (key) await createHttpTransport(serverUrl(), key).deleteAccount();
+  try { localStorage.removeItem(ENABLED_KEY); localStorage.removeItem(LAST_KEY); localStorage.removeItem(URL_KEY); } catch { /* rien à effacer */ }
+  await deleteSecret(KEY_SECRET);
   setStatus({ state: "idle" });
 }
 
@@ -79,7 +119,7 @@ export function runSync(): Promise<LibraryBook[] | null> {
       const config = await getSyncConfig();
       if (!config) return null;
       setStatus({ ...status, state: "running", error: undefined });
-      const { library, report, merged } = await syncLibrary(createHttpTransport(config.url, config.token));
+      const { library, report, merged } = await syncLibrary(createHttpTransport(config.url, config.key));
       const at = new Date().toISOString();
       try { localStorage.setItem(LAST_KEY, at); } catch { /* facultatif */ }
       setStatus({ state: "ok", at, report: { ...report, merged } });

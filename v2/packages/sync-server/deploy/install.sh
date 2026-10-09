@@ -20,10 +20,9 @@ fi
 
 id tsundoku >/dev/null 2>&1 || useradd --system --home "$app_dir" --shell /usr/sbin/nologin tsundoku
 
-# Base et jeton : créés une seule fois.
+# Base de données : créée une seule fois. Il n'y a pas de jeton à gérer : chaque application génère sa propre clé.
 if [ ! -f "$env_file" ]; then
   db_password="$(openssl rand -hex 24)"
-  token="$(openssl rand -hex 32)"
   su postgres -c "psql -v ON_ERROR_STOP=1 -q" <<SQL
 CREATE ROLE tsundoku LOGIN PASSWORD '$db_password';
 CREATE DATABASE tsundoku OWNER tsundoku;
@@ -31,9 +30,12 @@ SQL
   umask 077
   cat > "$env_file" <<ENV
 DATABASE_URL=postgres://tsundoku:$db_password@127.0.0.1:5432/tsundoku
-SYNC_TOKEN=$token
 PORT=8787
 HOST=127.0.0.1
+# Garde-fous de l'inscription ouverte (valeurs par défaut) :
+# MAX_USERS=200
+# MAX_ENTRIES_PER_USER=20000
+# NEW_USERS_PER_HOUR=20
 ENV
   chown root:tsundoku "$env_file"
   chmod 640 "$env_file"
@@ -54,9 +56,4 @@ systemctl --no-pager --lines=5 status tsundoku-sync || true
 
 echo
 echo "Serveur installé, il écoute sur 127.0.0.1:8787 (visible seulement depuis ce conteneur)."
-if [ "${first_install:-}" = 1 ]; then
-  echo "Jeton de synchronisation (à saisir dans l'application) :"
-  grep '^SYNC_TOKEN=' "$env_file" | cut -d= -f2
-  echo "Il reste lisible avec : grep SYNC_TOKEN $env_file"
-fi
-echo "Étape suivante : le rendre joignable en HTTPS avec Tailscale (voir DEPLOY.md)."
+echo "Étape suivante : le rendre joignable depuis Internet en HTTPS (voir DEPLOY.md, étape 3)."

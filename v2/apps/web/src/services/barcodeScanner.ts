@@ -25,22 +25,31 @@ async function ensureScannerModule(): Promise<void> {
   });
 }
 
-/**
- * Ouvre le lecteur et renvoie l'ISBN-13 du code-barres visé.
- * `null` : scan annulé. Erreur : lecteur indisponible, ou code qui n'est pas un ISBN.
- */
-export async function scanIsbn(): Promise<string | null> {
+/** Ouvre le lecteur et renvoie le texte du premier code lu (`null` : scan annulé). */
+async function scanFirst(formats: BarcodeFormat[]): Promise<string | null> {
   await ensureScannerModule();
-  let raw: string | undefined;
   try {
-    const { barcodes } = await BarcodeScanner.scan({ formats: [BarcodeFormat.Ean13] });
-    if (!barcodes.length) return null;
-    raw = barcodes[0].rawValue;
+    const { barcodes } = await BarcodeScanner.scan({ formats });
+    return barcodes[0]?.rawValue ?? null;
   } catch (error) {
     if (/cancel/i.test(String((error as Error)?.message))) return null;
     throw error;
   }
+}
+
+/**
+ * Renvoie l'ISBN-13 du code-barres visé.
+ * `null` : scan annulé. Erreur : lecteur indisponible, ou code qui n'est pas un ISBN.
+ */
+export async function scanIsbn(): Promise<string | null> {
+  const raw = await scanFirst([BarcodeFormat.Ean13]);
+  if (raw === null) return null;
   const isbn = isbnFromBarcode(raw);
   if (!isbn) throw new Error("Ce code-barres n'est pas celui d'un livre (il doit commencer par 978 ou 979).");
   return isbn;
+}
+
+/** Lit un QR code et renvoie son texte (`null` : scan annulé). */
+export function scanQrText(): Promise<string | null> {
+  return scanFirst([BarcodeFormat.QrCode]);
 }
