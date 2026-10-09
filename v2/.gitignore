@@ -20,3 +20,6 @@ packages/sync-server/release/
 *.tgz
 # Adresse publique du serveur de synchronisation : pas un secret, nécessaire au build.
 !apps/web/.env
+
+# APK de diffusion
+release/

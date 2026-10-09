@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 6 à 11 : sauvegarde automatique de la base (la bibliothèque), jamais des secrets. -->
+<!-- Android 6 à 11 : sauvegarde automatique de la base (la bibliothèque) seulement.
+     Dès qu'un <include> existe, tout le reste est exclu : les préférences (clé Google, clé de synchronisation) ne sont jamais sauvegardées. -->
 <full-backup-content>
     <include domain="database" path="." />
-    <exclude domain="sharedpref" path="." />
 </full-backup-content>

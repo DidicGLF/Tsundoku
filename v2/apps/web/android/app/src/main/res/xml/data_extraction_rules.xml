@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12 et plus : sauvegarde cloud et transfert vers un nouveau téléphone, base seulement. -->
+<!-- Android 12 et plus : sauvegarde cloud et transfert vers un nouveau téléphone, base seulement.
+     Dès qu'un <include> existe, tout le reste est exclu : les préférences (clé Google, clé de synchronisation) ne sont jamais sauvegardées. -->
 <data-extraction-rules>
     <cloud-backup>
         <include domain="database" path="." />
-        <exclude domain="sharedpref" path="." />
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="." />
-        <exclude domain="sharedpref" path="." />
     </device-transfer>
 </data-extraction-rules>
