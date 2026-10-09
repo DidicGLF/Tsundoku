@@ -5,6 +5,7 @@ import { exportBackup, lastBackupAt, previewImport } from "../services/backup";
 import { plural } from "../lib/library-view";
 import { DangerZone } from "../components/DangerZone";
 import { DeletedBooks } from "../components/DeletedBooks";
+import { InstallApp } from "../components/InstallApp";
 import { SyncSettings } from "../components/SyncSettings";
 import { useLibrary } from "../state/LibraryProvider";
 import { usePreferences } from "../state/PreferencesProvider";
@@ -89,6 +90,7 @@ export function SettingsScreen() {
   }
 
   return <section className="settings-card">
+    <InstallApp />
     <SyncSettings />
     <div className="settings-section settings-divider">
       <p className="eyebrow">Mes données</p>

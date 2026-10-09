@@ -56,7 +56,7 @@ function Shell() {
 
   return <div className="shell">
     <aside>
-      <div className="brand"><img src="/logo.png" alt="" width="40" height="40" /><b>Tsundoku</b></div>
+      <div className="brand"><img src={`${import.meta.env.BASE_URL}logo.png`} alt="" width="40" height="40" /><b>Tsundoku</b></div>
       <nav aria-label="Navigation principale">
         {([
           ["home", "Accueil", Home, "home"],
