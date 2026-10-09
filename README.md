@@ -1,51 +1,46 @@
-# Tsundoku
+# Tsundoku 積読
 
-Application web (PWA) pour suivre les romans d'un auteur : possession, statut de lecture, note et avis. Tout est stocké localement dans le navigateur (aucun compte, aucun serveur).
+*Tsundoku* : acheter des livres et les laisser s'empiler sans les lire. Cette application sert à garder la main sur la pile :
+on **suit des auteurs**, on voit **ce qu'on possède et ce qui manque**, et on suit ses lectures.
 
-## Utilisation en local
+Application Android et version web installable, qui fonctionnent **hors ligne** et peuvent se **synchroniser entre appareils**.
 
-Ouvrir `index.html` avec un petit serveur local (nécessaire pour que le service worker fonctionne), par exemple :
+## Installer
 
-```bash
-python3 -m http.server 8000
-```
+Tout part de la page d'installation : **https://didicglf.github.io/Tsundoku/**
 
-puis aller sur http://localhost:8000.
+| Appareil | Comment |
+| --- | --- |
+| Android | Télécharger l'APK (`tsundoku.apk`) depuis la page ou depuis les [Releases](https://github.com/DidicGLF/Tsundoku/releases), puis l'ouvrir. L'app signale elle-même les nouvelles versions. |
+| Ordinateur, iPhone | Ouvrir la version web puis « Installer » (ou « Ajouter à l'écran d'accueil »). |
 
-## Mise en ligne gratuite (GitHub Pages)
+Aucun compte, rien d'autre à installer. [Politique de confidentialité](https://didicglf.github.io/Tsundoku/privacy.html).
 
-1. Créer un dépôt sur GitHub (ex : `tsundoku`) et y pousser ce dossier :
-   ```bash
-   git remote add origin git@github.com:<votre-utilisateur>/tsundoku.git
-   git push -u origin main
-   ```
-2. Sur GitHub : **Settings → Pages → Source : Deploy from a branch**, choisir la branche `main` et le dossier `/ (root)`.
-3. Après quelques minutes, l'app est accessible à `https://<votre-utilisateur>.github.io/tsundoku/`.
-4. Sur mobile, ouvrir cette adresse puis « Ajouter à l'écran d'accueil » (Android : menu ⋮ ; iPhone : partager → Sur l'écran d'accueil).
+## Ce que fait l'application
 
-## Notes
+- **Accueil** : les *nouveautés* parues chez tes auteurs suivis, tes *derniers ajouts*, et des compteurs (livres, en cours, à lire, lus).
+- **Auteurs suivis** : bibliographie complète (BnF, Open Library, Google Books), photo et biographie (Wikipédia), détection des séries
+  et des nouvelles œuvres. Pour chaque livre : possédé ou manquant.
+- **Bibliothèque** : grille de couvertures groupée par auteur, filtres (possédés, manquants, favoris, statut), recherche, tris.
+- **Fiche livre** : statut (à lire, en cours, lu), progression, note, dates, édition, changement de jaquette.
+- **Ajout rapide** : recherche par titre, auteur ou ISBN, **scan du code-barres** (Android), ajout manuel.
+- **Jaquettes** : cherchées automatiquement ; sans image, une tuile colorée porte le titre.
+- **Synchronisation** entre appareils, sans compte : une clé aléatoire identifie la bibliothèque, un **code de liaison** court
+  (valable 5 minutes) relie un nouvel appareil. Les modifications se propagent en quelques secondes.
+- **Filet de sécurité** : confirmation avant suppression, écran « Livres supprimés » (restauration pendant 30 jours),
+  export et import de sauvegarde en JSON.
 
-- Les romans sont récupérés via l'API publique [Open Library](https://openlibrary.org/developers/api) (aucune clé requise), en ne gardant que les œuvres ayant au moins une édition en français. Le nombre d'« œuvres » affiché dans les résultats de recherche compte toutes les langues confondues — le nombre réellement importé (français uniquement) est donc normalement plus petit, ce n'est pas un bug. Le tagging de langue d'Open Library restant parfois incomplet, un vrai roman français peut malgré tout manquer : le bouton **« 🌐 Voir aussi les autres langues »** sur la fiche auteur va chercher le reste (toutes langues) pour compléter à la main.
-- Le titre affiché reste parfois celui de l'édition d'origine cataloguée par Open Library (souvent en anglais) même quand une édition française existe — Open Library ne fournit pas facilement le titre français au niveau de l'œuvre (voir « Google Books (optionnel) » ci-dessous). Un champ « Titre » dans la fiche du roman permet aussi de le renommer à la main quand le résultat automatique est mal formé ; un bouton « Réinitialiser » revient au titre d'origine.
-- Comme Open Library liste toutes les œuvres d'un auteur (parfois essais, recueils ou doublons de traductions), utilisez « Retirer de ma liste » sur une fiche pour nettoyer les entrées qui ne sont pas des romans.
-- Les données vivent dans le `localStorage` du navigateur utilisé : elles ne se synchronisent pas entre appareils et sont propres à ce navigateur. Certains réglages de confidentialité (ex : « effacer les cookies et données de site à la fermeture » sur Firefox) effacent aussi ces données — soit en ajoutant une exception pour le site dans ces réglages, soit via **⚙ Réglages → Exporter ma bibliothèque**, qui télécharge une sauvegarde JSON dans vos fichiers/téléchargements (donc hors de portée de ce nettoyage). **Importer une sauvegarde** sur cette même page restaure tout à partir d'un tel fichier — pratique aussi pour transférer sa bibliothèque vers un autre appareil ou navigateur, en l'absence de compte/synchronisation. Une case **« Télécharger automatiquement une sauvegarde à l'ouverture »** (activée par défaut, désactivable dans Réglages) déclenche ce même export toute seule, au plus une fois par jour, quand vous ouvrez l'app — c'est la meilleure approximation d'une sauvegarde automatique possible sans compte ni serveur : rien ne peut s'exécuter tant que l'app n'est pas ouverte, donc ce n'est pas une sauvegarde continue en arrière-plan, seulement à chaque visite.
-- Chaque roman a un champ « Série » libre (ex : « La Belgariade ») à remplir soi-même — Open Library ne fournit pas cette information de façon fiable au niveau œuvre. Le contrôle « Ranger par » (Grille / Série / Statut / Possession), sur la fiche dédiée d'un auteur (accessible en cliquant son nom), regroupe ensuite les romans par cette valeur, par statut de lecture, ou par possession.
-- La page d'accueil affiche directement les jaquettes de chaque auteur suivi, groupées en sections — pas besoin de cliquer sur un auteur pour voir sa bibliothèque. Cliquer sur le nom d'un auteur ouvre sa fiche dédiée, avec les filtres/tri/regroupement en plus. Le bouton « Afficher seulement ce qu'il me manque » en haut de la page filtre toutes les sections pour ne montrer que les romans pas encore possédés, tous auteurs confondus.
-- Les auteurs sont classés par nom de famille (« Eddings, David » sous E), comme en bibliothèque ou en librairie, plutôt que par prénom. À partir de 5 auteurs suivis, un index A-Z apparaît à droite de la page d'accueil pour sauter directement à une lettre.
-- Certains auteurs sont dupliqués sur Open Library sous plusieurs fiches identiques (même nom exact), chacune avec une partie seulement de sa bibliographie (ex : David Eddings, Maxime Chattam). Quand vous ajoutez un tel auteur, l'app recherche et fusionne automatiquement toutes les fiches portant exactement le même nom en une seule fois. Si une fiche déjà suivie a été ajoutée avant ce correctif (ou si Open Library ajoute une nouvelle fiche en double plus tard), la recherche l'affichera comme « auteur déjà suivi, clic pour compléter » plutôt que « ✓ suivi » — cliquez dessus pour la fusionner.
-- La liste d'un auteur se met à jour toute seule : à chaque visite, si elle n'a pas été vérifiée depuis plus de 24h, l'app revérifie discrètement Open Library en arrière-plan et ajoute les nouveautés (avec une petite notification si elle en trouve). Le bouton « 🔄 Actualiser la liste » sur la fiche auteur force cette vérification immédiatement.
-- Chaque roman affiche son ISBN quand on peut le trouver (édition française en priorité, sinon n'importe quelle édition), avec un bouton pour le copier — pratique pour le commander. Recherché automatiquement à l'ouverture de la fiche, via Google Books si une clé est configurée, sinon via Open Library.
+Les données restent d'abord sur l'appareil. Le serveur de synchronisation ne conserve que les fiches de bibliothèque,
+rattachées à l'empreinte de la clé : ni nom, ni e-mail. Les clés secrètes (Google Books, synchronisation) ne sont jamais synchronisées.
 
-## Google Books (optionnel)
+## Pour les développeurs
 
-Pour obtenir un titre et un résumé réellement en français quand Open Library n'en a pas (ou les a en anglais), l'app peut interroger [Google Books](https://developers.google.com/books) en complément — uniquement quand une clé API est renseignée dans **⚙ Réglages**.
+Le projet actuel (V2) est dans [`v2/`](v2/) : React + Vite, Capacitor (Android, SQLite natif), `sql.js` sur le web, et un petit
+serveur de synchronisation Node + PostgreSQL. Tout est documenté dans **[`v2/README.md`](v2/README.md)** : structure, commandes,
+base de données, synchronisation et ses tests, publication d'une version.
 
-Contrairement à ce qu'on pourrait attendre, Google Books **exige désormais une clé API même pour un simple test** (les appels anonymes reçoivent un quota de 0 requête/jour) — j'ai vérifié en la testant en conditions réelles. Sans clé, cette fonctionnalité reste simplement inactive et l'app fonctionne comme avant (résumé Open Library uniquement).
+Publier une version se résume à poser un tag : `git tag v0.3.1 && git push origin v0.3.1`. GitHub Actions construit l'APK signé,
+crée la Release et met le site à jour.
 
-Pour créer une clé gratuite (~2 minutes, compte Google requis) :
-1. Ouvrir [console.cloud.google.com/apis/library/books.googleapis.com](https://console.cloud.google.com/apis/library/books.googleapis.com) et cliquer sur **Activer** (créer un projet si demandé).
-2. Aller dans **Identifiants** → **Créer des identifiants** → **Clé API**.
-3. Coller la clé dans **⚙ Réglages** de l'app.
-4. Recommandé : dans les paramètres de la clé sur Google Cloud, la restreindre à l'API « Books API » uniquement, pour limiter les risques si elle fuite (elle est visible dans les requêtes réseau du navigateur).
-
-Le quota gratuit par défaut (généralement de l'ordre de 1000 requêtes/jour, visible sur le tableau de bord Google Cloud) est largement suffisant pour un usage personnel.
+> Les fichiers à la racine (`index.html`, `app.js`, `style.css`, `sw.js`, `icons/`, `manifest.json`) sont l'ancienne V1, conservée
+> pour mémoire. Elle n'est plus publiée : la page d'installation et l'application web viennent de `v2/`.

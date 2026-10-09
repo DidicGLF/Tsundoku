@@ -1,16 +1,30 @@
-# Tsundoku
+# Tsundoku (V2)
 
 Suivi de bibliothèque et de lectures : on suit des auteurs, on voit ce qu'on possède et ce qui manque.
-Web (React + Vite) et Android (Capacitor, SQLite natif). Indépendant de la V1.
+Android (Capacitor, SQLite natif) et web installable (PWA), avec synchronisation entre appareils.
+Présentation et installation pour les utilisateurs : [README à la racine](../README.md). Ce document est celui des développeurs.
+
+## Sommaire
+
+[Structure](#structure) · [Développement](#développement) · [Base de données](#base-de-données) · [Accueil](#accueil) ·
+[Sources de jaquettes](#sources-de-jaquettes) · [Informations sur les auteurs](#informations-sur-les-auteurs) · [Sauvegarde](#sauvegarde) ·
+[Scan ISBN](#scan-de-code-barres-isbn-android) · [Synchronisation](#synchronisation-entre-appareils) ·
+[Diffusion et versions](#diffusion--apk-version-web-et-page-dinstallation)
 
 ## Structure
 
 | Dossier | Rôle |
 | --- | --- |
-| `apps/web` | Application React, adaptateurs SQLite (sql.js sur le web, Capacitor sur Android) |
+| `apps/web` | Application React (écrans, composants, services), adaptateurs SQLite (sql.js sur le web, Capacitor sur Android), projet Android (`android/`) |
 | `packages/book-sources` | Clients BnF / Open Library / Google Books, normalisation des auteurs, fusion et comparaison de livres |
-| `packages/database` | Schéma SQLite versionné (`PRAGMA user_version`) et `SqliteLibraryRepository` |
-| `packages/credentials` | Stockage de la clé Google Books, séparé des données |
+| `packages/database` | Schéma SQLite versionné (`PRAGMA user_version`), `SqliteLibraryRepository`, moteur de synchronisation (`sync.ts`) et transport HTTP |
+| `packages/credentials` | Stockage des secrets (clé Google Books, clé de synchronisation), séparé des données |
+| `packages/sync-server` | Serveur de synchronisation (Node + PostgreSQL), scripts de déploiement et `DEPLOY.md` |
+| `site/` | Page d'installation, politique de confidentialité, service worker de nettoyage de la V1 |
+| `scripts/` | Version depuis les tags (`version.mjs`), build de l'APK signé, secrets de signature |
+| `../.github/workflows` | `release.yml` (APK + Release sur tag) et `pages.yml` (site + version web) |
+
+Le dossier s'appelle `v2/` pour des raisons historiques : la V1 (à la racine du dépôt) n'est plus publiée.
 
 ## Développement
 
@@ -18,12 +32,14 @@ Web (React + Vite) et Android (Capacitor, SQLite natif). Indépendant de la V1.
 nix-shell            # Node 22, pnpm, JDK et SDK Android (voir shell.nix)
 pnpm install
 pnpm dev             # serveur Vite
-pnpm test            # Vitest (matching, auteurs, dépôt SQLite en mémoire)
+pnpm test            # Vitest : ~220 tests (sources, base, synchronisation, écrans)
 pnpm typecheck
 pnpm build
 ```
 
-Sans compiler pour Android, `nix-shell -p nodejs_22 pnpm` suffit.
+Sans compiler pour Android, `nix-shell -p nodejs_22 pnpm` suffit. Les tests d'écran utilisent jsdom
+(`// @vitest-environment jsdom` en tête de fichier) ; `pnpm test:live` lance les tests qui interrogent les vraies API.
+En `pnpm dev`, la base est celle du navigateur (IndexedDB) : elle est distincte de celle du téléphone.
 
 ## Base de données
 
@@ -33,16 +49,26 @@ Une base issue des builds de prototype (table `library_books`) est supprimée et
 
 La clé Google Books est optionnelle : elle se saisit dans les paramètres de l'app.
 
+## Accueil
+
+L'écran d'accueil (`screens/HomeScreen.tsx`) montre, sous les compteurs :
+
+- **Nouveautés** : les œuvres détectées lors de l'actualisation d'un auteur suivi (`newlyDiscovered`) et pas encore possédées,
+  la plus récente d'abord, 4 au plus. Aucun appel réseau : c'est l'actualisation d'un auteur qui alimente ce bloc.
+- **Derniers ajouts** : les 8 derniers livres **possédés** (par date d'ajout). Les livres d'un auteur suivi arrivent « à trouver » :
+  ils n'y figurent qu'une fois marqués possédés.
+
+Les règles de sélection sont dans `lib/library-view.ts` (`newReleases`, `recentAdditions`).
+
 ## Sources de jaquettes
 
 Les jaquettes sont cherchées par étapes (cache → Open Library par ISBN → Amazon par ISBN-10 →
 Open Library par titre → Google Books si une clé est configurée). Sans image, une tuile générée
 porte le titre.
 
-**Avant toute distribution publique :** l'étape Amazon utilise l'adresse d'images
-`images-na.ssl-images-amazon.com/images/P/<ISBN-10>…`, qui n'est pas une API officielle et dont la
-réutilisation relève des conditions d'Amazon. Elle convient à un usage perso ou entre proches.
-Pour la couper : `amazon: false` dans `apps/web/src/services/coverSources.ts`.
+**À savoir :** l'étape Amazon utilise l'adresse d'images `images-na.ssl-images-amazon.com/images/P/<ISBN-10>…`, qui n'est pas
+une API officielle et dont la réutilisation relève des conditions d'Amazon. Elle est volontairement **active** dans les versions
+diffusées (choix du mainteneur) ; pour la couper : `amazon: false` dans `apps/web/src/services/coverSources.ts`.
 
 ## Informations sur les auteurs
 
