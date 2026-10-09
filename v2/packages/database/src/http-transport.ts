@@ -19,7 +19,7 @@ export function createHttpTransport(
         headers: { Authorization: `Bearer ${key.trim()}`, ...(init.body ? { "Content-Type": "application/json" } : {}) }
       });
     } catch {
-      throw new SyncServerError("Serveur injoignable. Vérifie l'adresse, ta connexion et que Tailscale est actif.");
+      throw new SyncServerError("Serveur injoignable. Vérifie ta connexion Internet ; si elle est bonne, le serveur est peut-être arrêté ou son adresse a changé.");
     }
     if (response.status === 401) throw new SyncServerError("Clé de synchronisation refusée par le serveur.", 401);
     if (response.status === 429 || response.status === 503 || response.status === 413) {
