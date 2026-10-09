@@ -67,3 +67,14 @@ Sur l'écran « Ajouter », le bouton « Scanner un ISBN » ouvre le lecteur de 
 Play Services, `@capacitor-mlkit/barcode-scanning`). Le module du lecteur est téléchargé la première
 fois (quelques secondes, réseau nécessaire). Seul un EAN-13 en 978/979 à clé valide est accepté
 (`lib/barcode.ts`) ; la recherche ISBN habituelle est alors lancée. Le bouton n'existe pas sur le web.
+
+## Synchronisation entre appareils
+
+Chaque appareil garde sa base complète (il marche hors ligne) et se synchronise avec un petit serveur personnel
+(`packages/sync-server` : Node + PostgreSQL, un jeton secret). Unité échangée : la fiche de bibliothèque entière ;
+la version modifiée en dernier gagne, les suppressions se propagent. Installation sur un conteneur LXC Proxmox
+avec Tailscale pour l'HTTPS : voir `packages/sync-server/DEPLOY.md`. Dans l'app : Paramètres → Synchronisation.
+Les secrets (clé Google, jeton) ne sont jamais synchronisés.
+
+Test de bout en bout contre un vrai PostgreSQL temporaire :
+`nix-shell -p nodejs_22 pnpm postgresql --run 'bash packages/sync-server/test/run-with-postgres.sh'`.

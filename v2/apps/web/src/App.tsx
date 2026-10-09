@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Home, Library, PlusCircle, Settings } from "./components/Icons";
 import { useBookSearch } from "./hooks/useBookSearch";
+import { useAutoSync } from "./hooks/useAutoSync";
 import { useLibraryFilters } from "./hooks/useLibraryFilters";
 import { AuthorScreen } from "./screens/AuthorScreen";
 import { BookDetailScreen } from "./screens/BookDetailScreen";
@@ -24,11 +25,13 @@ export default function App() {
 }
 
 function Shell() {
-  const { library, dbState, dbError } = useLibrary();
+  const { library, setLibrary, dbState, dbError } = useLibrary();
   const nav = useNavigation();
   // Ces états survivent à la navigation : on retrouve sa recherche et ses filtres en revenant.
   const filters = useLibraryFilters();
   const search = useBookSearch();
+
+  useAutoSync(dbState === "ready", setLibrary);
 
   const { route } = nav;
 

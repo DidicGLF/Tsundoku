@@ -2,6 +2,9 @@ import { cleanIsbn, isbn10To13, isbn13To10, type BookSearchResult } from "@tsund
 import {
   SqliteLibraryRepository,
   runMigrations,
+  syncOnce,
+  type SyncReport,
+  type SyncTransport,
   type FollowedAuthor,
   type NewLibraryBook,
   type StoredLibraryBook,
@@ -42,10 +45,14 @@ function repository(): Promise<SqliteLibraryRepository> {
 /** Search result -> library input, with catalogue author labels normalized and ISBN-13 derived. */
 
 export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
-  const repo = await repository();
+  return (await mergeDuplicates(await repository())).library;
+}
+
+/** Fusionne les fiches d'une même œuvre. Un échec n'empêche jamais d'ouvrir la bibliothèque telle quelle. */
+async function mergeDuplicates(repo: SqliteLibraryRepository): Promise<{ library: StoredLibraryBook[]; merged: number }> {
   const library = await repo.list();
   const merges = planDuplicateMerges(library);
-  if (!merges.length) return library;
+  if (!merges.length) return { library, merged: 0 };
   try {
     await repo.batch(async () => {
       for (const merge of merges) {
@@ -54,12 +61,24 @@ export async function initializeLibrary(): Promise<StoredLibraryBook[]> {
         for (const id of merge.removeIds) await repo.remove(id);
       }
     });
-    return await repo.list();
+    return { library: await repo.list(), merged: merges.length };
   } catch (error) {
     // La fusion est un confort : en cas d'échec, la bibliothèque s'ouvre quand même telle quelle.
     console.error("Fusion des doublons impossible:", error);
-    return library;
+    return { library, merged: 0 };
   }
+}
+
+/**
+ * Synchronise avec le serveur, puis fusionne les doublons que l'autre appareil a pu créer.
+ * Si des fusions ont eu lieu, elles sont envoyées tout de suite : l'autre appareil les reçoit sans attendre.
+ */
+export async function syncLibrary(transport: SyncTransport): Promise<{ library: StoredLibraryBook[]; report: SyncReport; merged: number }> {
+  const repo = await repository();
+  const report = await syncOnce(repo, transport);
+  const { library, merged } = await mergeDuplicates(repo);
+  if (merged) await syncOnce(repo, transport);
+  return { library: merged ? await repo.list() : library, report, merged };
 }
 
 /**

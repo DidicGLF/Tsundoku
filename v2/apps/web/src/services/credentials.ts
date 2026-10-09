@@ -16,7 +16,7 @@ class AndroidCredentialStore implements CredentialStore {
   private initialization: Promise<void> | null = null;
 
   /** Une seule initialisation, même si plusieurs appels arrivent en même temps (le préfixe est global). */
-  private ready(): Promise<void> {
+  ready(): Promise<void> {
     this.initialization ??= this.initialize();
     return this.initialization;
   }
@@ -54,9 +54,8 @@ class AndroidCredentialStore implements CredentialStore {
   }
 }
 
-const credentialStore: CredentialStore = Capacitor.isNativePlatform()
-  ? new AndroidCredentialStore()
-  : new WebCredentialStore();
+const androidStore = Capacitor.isNativePlatform() ? new AndroidCredentialStore() : null;
+const credentialStore: CredentialStore = androidStore ?? new WebCredentialStore();
 
 export function getCredentialStore(): CredentialStore {
   return credentialStore;
@@ -77,4 +76,34 @@ export async function saveGoogleBooksApiKey(key: string): Promise<void> {
 
 export async function deleteGoogleBooksApiKey(): Promise<void> {
   await credentialStore.deleteGoogleBooksApiKey();
+}
+
+/* ---- Secrets divers (jeton de synchronisation) : stockage sécurisé sur Android, localStorage sur le web ---- */
+
+const SECRET_PREFIX = "tsundoku.secret.";
+
+export async function getSecret(name: string): Promise<string | null> {
+  if (androidStore) {
+    await androidStore.ready();
+    return SecureStorage.getItem(name).then(value => (typeof value === "string" && value ? value : null));
+  }
+  try { return localStorage.getItem(SECRET_PREFIX + name); } catch { return null; }
+}
+
+export async function setSecret(name: string, value: string): Promise<void> {
+  if (androidStore) {
+    await androidStore.ready();
+    await SecureStorage.setItem(name, value);
+    return;
+  }
+  localStorage.setItem(SECRET_PREFIX + name, value);
+}
+
+export async function deleteSecret(name: string): Promise<void> {
+  if (androidStore) {
+    await androidStore.ready();
+    await SecureStorage.removeItem(name).catch(() => undefined);
+    return;
+  }
+  try { localStorage.removeItem(SECRET_PREFIX + name); } catch { /* rien à supprimer */ }
 }
