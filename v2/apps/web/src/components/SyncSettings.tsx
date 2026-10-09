@@ -2,7 +2,7 @@ import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react
 import { plural } from "../lib/library-view";
 import { canScanBarcode, scanQrText } from "../services/barcodeScanner";
 import {
-  createPairingCode, DEFAULT_SERVER_URL, deleteServerData, disableSync, enableSync, getSyncConfig, getSyncKey, getSyncStatus, isSyncEnabled,
+  createPairingCode, currentLibraryFingerprint, DEFAULT_SERVER_URL, deleteServerData, disableSync, enableSync, getSyncConfig, getSyncKey, getSyncStatus, isSyncEnabled,
   joinSync, runSync, serverUrl, subscribeSync
 } from "../services/sync";
 import { useLibrary } from "../state/LibraryProvider";
@@ -19,12 +19,14 @@ export function SyncSettings() {
   const [key, setKey] = useState("");
   const [pairing, setPairing] = useState<{ code: string; expiresAt: number } | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
   const [joinKey, setJoinKey] = useState("");
   const [advancedUrl, setAdvancedUrl] = useState("");
   const hasServer = Boolean(serverUrl());
 
   useEffect(() => {
     void getSyncConfig().then(config => setEnabled(Boolean(config)), () => undefined);
+    void currentLibraryFingerprint().then(setFingerprint, () => undefined);
   }, []);
 
   // Compte à rebours du code de liaison.
@@ -41,6 +43,7 @@ export function SyncSettings() {
       if (joinInput !== undefined) await joinSync(joinInput, advancedUrl || undefined);
       else await enableSync({ customUrl: advancedUrl || undefined });
       setEnabled(true);
+      setFingerprint(await currentLibraryFingerprint());
       setMode("home");
       setJoinKey("");
       setMessage("Synchronisation activée. Première synchronisation…");
@@ -161,6 +164,7 @@ export function SyncSettings() {
 
     {enabled && mode === "home" && <>
       <p className="settings-help" role="status">{summary}</p>
+      {fingerprint && <p className="settings-help">Bibliothèque {fingerprint}{status.serverEntries != null ? ` · ${status.serverEntries} ${plural(status.serverEntries, "livre")} sur le serveur` : ""}. Le même identifiant doit s'afficher sur tous tes appareils.</p>}
       <div className="credential-actions">
         <button type="button" disabled={busy || dbState !== "ready"} onClick={() => void syncNow()}>Synchroniser maintenant</button>
         <button type="button" className="secondary-inline" disabled={busy} onClick={() => void showPairing()}>Lier un autre appareil</button>

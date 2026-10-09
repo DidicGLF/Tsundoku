@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { runMigrations } from "../src/migrations";
 import { SqliteLibraryRepository } from "../src/library-repository";
-import { syncOnce, type SyncPage, type SyncPayload, type SyncTransport } from "../src/sync";
+import { syncOnce, useSyncIdentity, type SyncPage, type SyncPayload, type SyncTransport } from "../src/sync";
 import type { NewLibraryBook, SyncEntry, SyncFollowedAuthor } from "../src/types";
 import { createTestAdapter } from "./sqljs-adapter";
 
@@ -218,5 +218,33 @@ describe("sync", () => {
     await syncOnce(phone, t, clock);
     await syncOnce(pc, t, clock);
     expect((await pc.list())[0].seriesName).toBeUndefined();
+  });
+
+  it("a device that switches to another library starts again from zero (it used to receive nothing)", async () => {
+    // Le PC a d'abord synchronisé sa propre bibliothèque (identité « pc ») : sa position de reprise est élevée,
+    // car la séquence du serveur est commune à tous ses utilisateurs.
+    const own = new FakeServer();
+    own.seq = 50;
+    await pc.add(hyperion);
+    await useSyncIdentity(pc, "pc");
+    await syncOnce(pc, own.transport(), clock);
+
+    // Le téléphone a rempli sa bibliothèque : ses fiches ont des numéros bas.
+    await phone.add(dune);
+    const joined = new FakeServer();
+    await syncOnce(phone, joined.transport(), clock);
+
+    // Le PC rejoint la bibliothèque du téléphone.
+    await useSyncIdentity(pc, "phone");
+    const report = await syncOnce(pc, joined.transport(), clock);
+    expect(report.received).toBe(1);
+    expect((await pc.list()).map(b => b.title).sort()).toEqual(["Dune", "Hypérion"]);
+    // et la bibliothèque du PC est elle aussi partagée désormais
+    await syncOnce(phone, joined.transport(), clock);
+    expect((await phone.list()).map(b => b.title).sort()).toEqual(["Dune", "Hypérion"]);
+
+    // Même identité : rien ne change.
+    await useSyncIdentity(pc, "phone");
+    expect((await syncOnce(pc, joined.transport(), clock)).received).toBe(0);
   });
 });

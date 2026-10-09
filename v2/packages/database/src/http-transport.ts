@@ -8,7 +8,7 @@ export class SyncServerError extends Error {
 /** Le serveur de synchronisation de Tsundoku, par HTTP. `baseUrl` : « https://mon-serveur.tailnet.ts.net ». */
 export function createHttpTransport(
   baseUrl: string, key: string, fetchImpl: typeof fetch = (input, init) => fetch(input, init)
-): SyncTransport & { ping(): Promise<void>; deleteAccount(): Promise<void>; offerPairing(id: string, payload: string): Promise<{ expiresInSeconds: number }> } {
+): SyncTransport & { ping(): Promise<{ entries?: number }>; deleteAccount(): Promise<void>; offerPairing(id: string, payload: string): Promise<{ expiresInSeconds: number }> } {
   const root = baseUrl.trim().replace(/\/+$/, "");
 
   async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -31,7 +31,7 @@ export function createHttpTransport(
   }
 
   return {
-    async ping() { await call("/v1/ping"); },
+    ping() { return call<{ entries?: number }>("/v1/ping"); },
     async deleteAccount() { await call("/v1/account", { method: "DELETE" }); },
     offerPairing(id: string, payload: string) { return call<{ expiresInSeconds: number }>(`/v1/pair/${id}`, { method: "PUT", body: JSON.stringify({ payload }) }); },
     async push(payload: SyncPayload) { await call("/v1/push", { method: "POST", body: JSON.stringify(payload) }); },

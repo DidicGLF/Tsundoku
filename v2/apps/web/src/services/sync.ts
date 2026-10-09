@@ -1,6 +1,6 @@
 import { claimPairing, createHttpTransport, SyncServerError, type SyncReport } from "@tsundoku/database";
 import { formatPairingCode, generatePairingCode, normalizePairingCode, openKey, pairingIdOf, sealKey } from "../lib/pairing";
-import { generateSyncKey, parseSyncKey } from "../lib/sync-key";
+import { generateSyncKey, keyFingerprint, parseSyncKey } from "../lib/sync-key";
 import { deleteSecret, getSecret, setSecret } from "./credentials";
 import { syncLibrary, type LibraryBook } from "./library";
 
@@ -117,6 +117,8 @@ export interface SyncStatus {
   at?: string;
   error?: string;
   report?: SyncReport & { merged: number };
+  /** Fiches de cette bibliothèque sur le serveur (serveurs récents seulement). */
+  serverEntries?: number;
 }
 
 let status: SyncStatus = (() => {
@@ -144,10 +146,12 @@ export function runSync(): Promise<LibraryBook[] | null> {
       const config = await getSyncConfig();
       if (!config) return null;
       setStatus({ ...status, state: "running", error: undefined });
-      const { library, report, merged } = await syncLibrary(createHttpTransport(config.url, config.key));
+      const transport = createHttpTransport(config.url, config.key);
+      const { library, report, merged } = await syncLibrary(transport, await keyFingerprint(config.key));
+      const serverEntries = await transport.ping().then(info => info.entries, () => undefined);
       const at = new Date().toISOString();
       try { localStorage.setItem(LAST_KEY, at); } catch { /* facultatif */ }
-      setStatus({ state: "ok", at, report: { ...report, merged } });
+      setStatus({ state: "ok", at, report: { ...report, merged }, serverEntries });
       return library;
     } catch (error) {
       const message = error instanceof SyncServerError || error instanceof Error ? error.message : "Synchronisation impossible.";
@@ -158,4 +162,10 @@ export function runSync(): Promise<LibraryBook[] | null> {
     }
   })();
   return current;
+}
+
+/** Identifiant court de la bibliothèque synchronisée, identique sur tous ses appareils. */
+export async function currentLibraryFingerprint(): Promise<string | null> {
+  const key = await getSyncKey();
+  return key ? keyFingerprint(key) : null;
 }

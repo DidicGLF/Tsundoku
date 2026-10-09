@@ -3,6 +3,7 @@ import {
   SqliteLibraryRepository,
   runMigrations,
   syncOnce,
+  useSyncIdentity,
   type SyncReport,
   type SyncTransport,
   type FollowedAuthor,
@@ -73,8 +74,9 @@ async function mergeDuplicates(repo: SqliteLibraryRepository): Promise<{ library
  * Synchronise avec le serveur, puis fusionne les doublons que l'autre appareil a pu créer.
  * Si des fusions ont eu lieu, elles sont envoyées tout de suite : l'autre appareil les reçoit sans attendre.
  */
-export async function syncLibrary(transport: SyncTransport): Promise<{ library: StoredLibraryBook[]; report: SyncReport; merged: number }> {
+export async function syncLibrary(transport: SyncTransport, identity: string): Promise<{ library: StoredLibraryBook[]; report: SyncReport; merged: number }> {
   const repo = await repository();
+  await useSyncIdentity(repo, identity);
   const report = await syncOnce(repo, transport);
   const { library, merged } = await mergeDuplicates(repo);
   if (merged) await syncOnce(repo, transport);

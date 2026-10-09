@@ -242,7 +242,10 @@ export function createApp(pool: Pool, limits: Limits = DEFAULT_LIMITS): Server {
       rateLimit(userId);
 
       const url = new URL(request.url ?? "/", "http://localhost");
-      if (request.method === "GET" && url.pathname === "/v1/ping") return send(response, 200, { ok: true });
+      if (request.method === "GET" && url.pathname === "/v1/ping") {
+        const { rows } = await pool.query<{ n: string }>("SELECT count(*) AS n FROM entries WHERE user_id = $1 AND NOT (doc ? 'deletedAt')", [userId]);
+        return send(response, 200, { ok: true, entries: Number(rows[0].n) });
+      }
       if (request.method === "POST" && url.pathname === "/v1/push") return send(response, 200, await push(pool, userId, await readJson(request), limits, newUsers));
       if (request.method === "GET" && url.pathname === "/v1/pull") {
         const since = Number(url.searchParams.get("since") ?? 0);

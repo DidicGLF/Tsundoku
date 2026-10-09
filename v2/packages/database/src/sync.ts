@@ -67,3 +67,14 @@ export async function syncOnce(
   }
   return { pushed: entries.length, received, followedReceived };
 }
+
+/**
+ * Les positions de reprise appartiennent à une bibliothèque du serveur. Quand un appareil en change (il rejoint celle d'un
+ * autre appareil), elles sont remises à zéro : sinon il croirait avoir déjà tout reçu et tout envoyé.
+ */
+export async function useSyncIdentity(repo: SqliteLibraryRepository, identity: string): Promise<void> {
+  if ((await repo.getSyncState("sync.identity")) === identity) return;
+  await repo.setSyncState(KEY_CURSOR, "0");
+  await repo.setSyncState(KEY_PUSHED_AT, "");
+  await repo.setSyncState("sync.identity", identity);
+}

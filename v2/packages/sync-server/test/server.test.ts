@@ -47,7 +47,7 @@ describe.skipIf(!databaseUrl)("serveur de synchronisation (PostgreSQL réel)", (
   it("refuses a missing or malformed key, accepts a well-formed one", async () => {
     expect((await fetch(`${baseUrl}/v1/ping`)).status).toBe(401);
     expect((await fetch(`${baseUrl}/v1/ping`, { headers: { Authorization: "Bearer trop-court" } })).status).toBe(401);
-    await expect(createHttpTransport(baseUrl, KEY).ping()).resolves.toBeUndefined();
+    await expect(createHttpTransport(baseUrl, KEY).ping()).resolves.toMatchObject({ ok: true, entries: 0 });
     await expect(createHttpTransport(baseUrl, "x").ping()).rejects.toBeInstanceOf(SyncServerError);
   });
 

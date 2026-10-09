@@ -11,3 +11,10 @@ export function parseSyncKey(value: string): string | undefined {
   const key = value.trim();
   return /^[A-Za-z0-9_-]{32,200}$/.test(key) ? key : undefined;
 }
+
+/** Identifiant court et non secret d'une bibliothèque (« A3F9-C2E1 ») : le même sur tous les appareils qui la partagent. */
+export async function keyFingerprint(key: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`tsundoku-fingerprint:${key}`)));
+  const hex = [...digest.slice(0, 4)].map(byte => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
+  return `${hex.slice(0, 4)}-${hex.slice(4)}`;
+}
