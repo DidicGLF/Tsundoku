@@ -2343,3 +2343,7 @@ select {
   flex: 0 0 112px;
   scroll-snap-align: start;
 }
+
+.release-list .mini-cover {
+  flex: none;
+}
