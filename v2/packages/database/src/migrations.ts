@@ -122,6 +122,14 @@ const migrations: string[][] = [
        WHERE b.id = editions.book_id AND b.description LIKE 'Collection : %'
      ) WHERE collection IS NULL`,
     `UPDATE books SET description = NULL WHERE source = 'bnf' AND description IS NOT NULL AND length(description) <= 100`
+  ],
+  // 4 — synchronisation: unfollowing an author becomes a soft delete, and a small key/value table keeps the sync cursors
+  [
+    `ALTER TABLE followed_authors ADD COLUMN deleted_at TEXT`,
+    `CREATE TABLE sync_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )`
   ]
 ];
 

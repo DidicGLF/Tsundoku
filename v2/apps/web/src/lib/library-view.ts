@@ -328,7 +328,8 @@ const statusRank = (status: LibraryBook["status"]) => (status === "READ" ? 3 : s
  * ancienne et on lui reporte ce que les autres savent (possédé, favori, avancement, note).
  */
 export function planDuplicateMerges(library: LibraryBook[]): DuplicateMerge[] {
-  const ordered = [...library].sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime());
+  // À date égale on départage par id : deux appareils synchronisés doivent garder la même fiche.
+  const ordered = [...library].sort((a, b) => new Date(a.addedAt).getTime() - new Date(b.addedAt).getTime() || a.id.localeCompare(b.id));
   const index: WorkIndex = { byTitle: new Map(), byIsbn: new Map(), bySource: new Map() };
   const groups = new Map<string, LibraryBook[]>();
   for (const book of ordered) {

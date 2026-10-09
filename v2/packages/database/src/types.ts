@@ -100,3 +100,12 @@ export interface FollowedAuthor {
   name: string;
   lastRefreshedAt?: string;
 }
+
+/** A library entry as exchanged between devices: the whole flattened book, live or deleted. */
+export type SyncEntry = StoredLibraryBook & { deletedAt?: string };
+
+/** A followed author as exchanged between devices. `deletedAt` marks an unfollow. */
+export interface SyncFollowedAuthor extends FollowedAuthor {
+  updatedAt: string;
+  deletedAt?: string;
+}
