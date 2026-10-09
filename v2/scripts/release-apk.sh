@@ -22,7 +22,8 @@ apk="apps/web/android/app/build/outputs/apk/release/app-release.apk"
 apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
 "$apksigner" verify --verbose --print-certs "$apk" | grep -E "Verifies|v2|v3|SHA-256" | head -6
 expected="$(tr -d '[:space:]' < scripts/signing-fingerprint.txt)"
-actual="$("$apksigner" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1)"
+# Le préfixe de la ligne change d'une version d'apksigner à l'autre (« Signer #1 » ou « V2 Signer ») : on ne garde que l'empreinte.
+actual="$("$apksigner" verify --print-certs "$apk" | grep -m1 'certificate SHA-256 digest' | sed 's/.*: //' | tr -d '[:space:]')"
 [ "$actual" = "$expected" ] || { echo "Empreinte de la clé inattendue : $actual (attendu $expected)" >&2; exit 1; }
 
 mkdir -p release
