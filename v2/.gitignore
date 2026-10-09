@@ -16,3 +16,5 @@ apps/web/android/app/src/main/assets/capacitor.plugins.json
 *.keystore
 *.jks
 .env*
+packages/sync-server/release/
+*.tgz

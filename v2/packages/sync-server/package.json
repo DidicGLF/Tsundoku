@@ -1,0 +1,21 @@
+{
+  "name": "@tsundoku/sync-server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/main.js",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "release": "node deploy/make-release.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/pg": "^8.11.10",
+    "@tsundoku/database": "workspace:*"
+  }
+}
