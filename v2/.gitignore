@@ -19,4 +19,4 @@ apps/web/android/app/src/main/assets/capacitor.plugins.json
 packages/sync-server/release/
 *.tgz
 # Adresse publique du serveur de synchronisation : pas un secret, nécessaire au build.
-!apps/web/.env.production
+!apps/web/.env

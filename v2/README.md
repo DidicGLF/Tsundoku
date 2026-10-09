@@ -78,7 +78,7 @@ code (ou en collant la clé). Unité échangée : la fiche de bibliothèque enti
 gagne, les suppressions se propagent. L'utilisateur peut tout effacer du serveur depuis l'app.
 Les secrets (clé Google, clé de synchronisation) ne sont jamais synchronisés.
 
-L'adresse du serveur est intégrée au build : `apps/web/.env.production` avec `VITE_SYNC_URL=https://…` (sans elle,
+L'adresse du serveur est intégrée au build : `apps/web/.env` avec `VITE_SYNC_URL=https://…` (sans elle,
 l'écran propose de la saisir). Installation du serveur (conteneur LXC + Tailscale Funnel) : `packages/sync-server/DEPLOY.md`.
 
 Test de bout en bout contre un vrai PostgreSQL temporaire :
