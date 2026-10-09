@@ -219,6 +219,18 @@ select {
   margin-bottom: 24px;
 }
 
+.search-form.with-scan {
+  grid-template-columns: 1fr 180px 190px auto auto;
+}
+
+.scan-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill,minmax(245px,1fr));
@@ -418,6 +430,7 @@ select {
   }
 
   .search-form,
+  .search-form.with-scan,
   .library-search {
     grid-template-columns: 1fr;
   }

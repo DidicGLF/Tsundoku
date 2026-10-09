@@ -18,6 +18,7 @@ export const Home = ({ size }: { size?: number }) => <Icon size={size}><path d="
 export const Library = ({ size }: { size?: number }) => <Icon size={size}><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 5.5l3.8-1 3 14.6-3.8 1z" /></Icon>;
 export const PlusCircle = ({ size }: { size?: number }) => <Icon size={size}><circle cx="12" cy="12" r="8.5" /><path d="M12 8v8M8 12h8" /></Icon>;
 export const Settings = ({ size }: { size?: number }) => <Icon size={size}><circle cx="12" cy="12" r="3" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" /></Icon>;
+export const Barcode = ({ size }: { size?: number }) => <Icon size={size}><path d="M4 6v12M7.5 6v12M11 6v12M14.5 6v12M18 6v12M20.5 6v12" /></Icon>;
 export const BookOpen = ({ size }: { size?: number }) => <Icon size={size}><path d="M4 5h6a3 3 0 013 3v11a2 2 0 00-2-2H4zM20 5h-6a3 3 0 00-3 3v11a2 2 0 012-2h7z" /></Icon>;
 
 export function Star({ filled, size = 40 }: { filled: boolean; size?: number }) {

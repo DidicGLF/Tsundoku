@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { cleanIsbn, canonicalAuthorDisplay, canonicalAuthorIdentity, canonicalAuthorSort, collapseToWorks, isSameWork, type BookSearchResult } from "@tsundoku/book-sources";
+import { Barcode } from "../components/Icons";
 import { SearchCard } from "../components/BookCards";
 import { ManualAdd } from "../components/ManualAdd";
 import type { BookSearch } from "../hooks/useBookSearch";
@@ -7,6 +8,7 @@ import { createWorkIndex, findLocalWork, libraryStateOf, plural } from "../lib/l
 import { followAuthor } from "../services/authorLibrary";
 import { getBookLanguageGroup, type BookSearchField, type SearchProvider } from "../services/bookSearch";
 import { hasGoogleBooksApiKey } from "../services/credentials";
+import { canScanBarcode, scanIsbn } from "../services/barcodeScanner";
 import { addBookToLibrary, adoptEdition } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
@@ -19,6 +21,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
   const nav = useNavigation();
   const { preferredLanguage } = usePreferences();
   const [followBusy, setFollowBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [actionError, setActionError] = useState("");
   const [googleKeyKnown, setGoogleKeyKnown] = useState<boolean | null>(null);
   const { results, field, activeLanguage } = search;
@@ -54,6 +57,19 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       .map(group => ({ ...group, books: collapseToWorks(group.books) }))
       .sort((a, b) => b.books.length - a.books.length || canonicalAuthorSort(a.name).localeCompare(canonicalAuthorSort(b.name), "fr"));
   }, [results, field, activeLanguage, search.q]);
+
+  async function scan() {
+    setActionError("");
+    setScanning(true);
+    try {
+      const isbn = await scanIsbn();
+      if (isbn) await search.searchIsbn(isbn);
+    } catch (x) {
+      setActionError(x instanceof Error ? x.message : "Le scan a échoué.");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function add(book: BookSearchResult, owned: boolean) {
     setActionError("");
@@ -93,7 +109,7 @@ export function SearchScreen({ search }: { search: BookSearch }) {
   const suggestGoogleKey = googleKeyKnown === false && !search.busy && missingCovers >= 5;
 
   return <>
-    <form className="search-form" onSubmit={search.submit}>
+    <form className={canScanBarcode() ? "search-form with-scan" : "search-form"} onSubmit={search.submit}>
       <input value={search.q} onChange={e => search.setQ(e.target.value)} placeholder="Titre, auteur ou ISBN…" />
       <select value={field} onChange={e => search.setField(e.target.value as BookSearchField)}>
         <option value="all">Recherche générale</option><option value="author">Auteur</option><option value="title">Titre</option><option value="isbn">ISBN</option>
@@ -102,6 +118,9 @@ export function SearchScreen({ search }: { search: BookSearch }) {
         <option value="all">Toutes les sources</option><option value="bnf">BnF</option><option value="open-library">Open Library</option><option value="google-books">{googleKeyKnown ? "Google Books" : "Google Books (clé requise)"}</option>
       </select>
       <button disabled={search.busy}>{search.busy ? "Recherche…" : "Rechercher"}</button>
+      {canScanBarcode() && <button type="button" className="scan-button" disabled={search.busy || scanning} onClick={() => void scan()}>
+        <Barcode size={20} /> {scanning ? "Scan…" : "Scanner un ISBN"}
+      </button>}
     </form>
     {search.similar && <p className="cover-status similar-banner" role="status">{search.similar.label} <span>· BnF, éditions françaises</span></p>}
     {error && <p className="error">{error}</p>}

@@ -54,7 +54,8 @@ export function useBookSearch() {
 
   const resetCovers = () => { runningCovers.current = 0; setCoversRunning(false); };
 
-  const run = useCallback(async (language: BookSearchLanguage, showOthers: boolean) => {
+  const run = useCallback(async (language: BookSearchLanguage, showOthers: boolean, override?: { q: string; field: BookSearchField; provider: SearchProvider }) => {
+    const params = override ?? { q, field, provider };
     const searchId = ++currentSearch.current;
     const isCurrent = () => searchId === currentSearch.current;
     resetCovers();
@@ -71,15 +72,15 @@ export function useBookSearch() {
     // Les résultats s'affichent dès que la première source répond.
     const progress = (partial: BookSearchResult[]) => { if (isCurrent()) setResults(partial); };
     try {
-      const found = field === "author"
-        ? await searchCompleteAuthorBibliography(q, provider, language, false, progress, message => { if (isCurrent()) setNotice(message); })
-        : await searchBooks(q, provider, language, 0, field, progress, message => { if (isCurrent()) setNotice(message); });
+      const found = params.field === "author"
+        ? await searchCompleteAuthorBibliography(params.q, params.provider, language, false, progress, message => { if (isCurrent()) setNotice(message); })
+        : await searchBooks(params.q, params.provider, language, 0, params.field, progress, message => { if (isCurrent()) setNotice(message); });
       if (!isCurrent()) return;
       setResults(found);
       setOffset(PAGE_SIZE);
-      setCanLoadMore(field !== "author" && found.length > 0);
-      setNoPreferredResults(!showOthers && language !== "all" && field !== "isbn" && found.length === 0);
-      setSearched({ q: q.trim(), field });
+      setCanLoadMore(params.field !== "author" && found.length > 0);
+      setNoPreferredResults(!showOthers && language !== "all" && params.field !== "isbn" && found.length === 0);
+      setSearched({ q: params.q.trim(), field: params.field });
       enrichInBackground(found, language, searchId);
     } catch (x) {
       const hasKey = await hasGoogleBooksApiKey().catch(() => false);
@@ -137,6 +138,14 @@ export function useBookSearch() {
     }
   }, [preferredLanguage, enrichInBackground]);
 
+  /** Recherche directe par ISBN (code-barres scanné) : remplit le formulaire puis lance la recherche. */
+  const searchIsbn = useCallback((isbn: string) => {
+    setQ(isbn);
+    setField("isbn");
+    setProvider("all");
+    return run(preferredLanguage, false, { q: isbn, field: "isbn", provider: "all" });
+  }, [run, preferredLanguage]);
+
   const submit = useCallback((e: FormEvent) => { e.preventDefault(); void run(preferredLanguage, false); }, [run, preferredLanguage]);
   const searchAllLanguages = useCallback(() => run("all", true), [run]);
 
@@ -172,7 +181,7 @@ export function useBookSearch() {
     q, setQ, provider, setProvider, field, setField,
     results, canLoadMore, activeLanguage, showOtherLanguages, setShowOtherLanguages,
     noPreferredResults, busy, coversRunning, error, notice, searched, similar,
-    submit, searchAllLanguages, loadMore, clear, runSimilar
+    submit, searchIsbn, searchAllLanguages, loadMore, clear, runSimilar
   };
 }
 

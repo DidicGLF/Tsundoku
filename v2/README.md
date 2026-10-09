@@ -60,3 +60,10 @@ vers l'article reste visible sous le résumé.
   un livre déjà présent (même ISBN ou même œuvre) reçoit seulement ce qui lui manque. Format versionné
   (`format`) : une sauvegarde plus récente que l'app est refusée.
 - Un rappel s'affiche sur l'accueil si la bibliothèque (≥ 5 livres) n'a jamais été exportée ou pas depuis 30 jours.
+
+## Scan de code-barres ISBN (Android)
+
+Sur l'écran « Ajouter », le bouton « Scanner un ISBN » ouvre le lecteur de Google (ML Kit, via
+Play Services, `@capacitor-mlkit/barcode-scanning`). Le module du lecteur est téléchargé la première
+fois (quelques secondes, réseau nécessaire). Seul un EAN-13 en 978/979 à clé valide est accepté
+(`lib/barcode.ts`) ; la recherche ISBN habituelle est alors lancée. Le bouton n'existe pas sur le web.
