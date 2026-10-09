@@ -9,6 +9,8 @@ import { LEGACY_RENAME, SCHEMA } from "./schema.js";
  *   POST   /v1/push              { entries, followed } : enregistre ce qui est plus récent que la version connue
  *   GET    /v1/pull?since&limit  les changements après la position `since`
  *   DELETE /v1/account           efface toutes les données de cet utilisateur
+ *   PUT    /v1/pair/:id          dépose une clé chiffrée par un code de liaison (quelques minutes, un seul à la fois par utilisateur)
+ *   POST   /v1/pair/claim        { id } : récupère cette clé chiffrée, une seule fois (sans clé : c'est l'autre appareil)
  * Les fiches sont stockées telles quelles (JSON) : le serveur ne connaît que leur id et leur date de version.
  * Pas de compte ni de mot de passe : chaque application génère une clé secrète aléatoire (en-tête Bearer).
  * L'utilisateur est l'empreinte de cette clé, créé au premier envoi ; la clé elle-même n'est jamais stockée.
@@ -29,9 +31,13 @@ export interface Limits {
   requestsPerMinute: number;
   /** Nouveaux utilisateurs acceptés par heure, tous confondus. */
   newUsersPerHour: number;
+  /** Validité d'un code de liaison. */
+  pairingTtlSeconds: number;
+  /** Demandes de code de liaison par minute, tous confondus (l'identifiant d'un code ne se devine pas : c'est un garde-fou de charge). */
+  claimsPerMinute: number;
 }
 
-export const DEFAULT_LIMITS: Limits = { maxUsers: 200, maxEntriesPerUser: 20000, requestsPerMinute: 120, newUsersPerHour: 20 };
+export const DEFAULT_LIMITS: Limits = { maxUsers: 200, maxEntriesPerUser: 20000, requestsPerMinute: 120, newUsersPerHour: 20, pairingTtlSeconds: 300, claimsPerMinute: 300 };
 
 interface Entry { id: string; updatedAt: string }
 interface Followed { authorKey: string; updatedAt: string }
@@ -124,6 +130,32 @@ async function registerUser(client: PoolClient, userId: string, limits: Limits, 
   await client.query("INSERT INTO users(user_id) VALUES($1)", [userId]);
 }
 
+const MAX_PENDING_PAIRINGS = 1000;
+const MAX_PAYLOAD = 4096;
+
+/** Dépose un code de liaison ; le précédent de cet utilisateur est remplacé. */
+export async function offerPairing(pool: Pool, userId: string, id: string, payload: unknown, ttlSeconds: number): Promise<void> {
+  if (!/^[0-9a-f]{32,128}$/.test(id) || typeof payload !== "string" || payload.length === 0 || payload.length > MAX_PAYLOAD) {
+    throw new HttpError(400, "Code de liaison invalide.");
+  }
+  await pool.query("DELETE FROM pairings WHERE expires_at < now()");
+  const { rows } = await pool.query<{ n: string }>("SELECT count(*) AS n FROM pairings");
+  if (Number(rows[0].n) >= MAX_PENDING_PAIRINGS) throw new HttpError(503, "Trop de liaisons en cours, réessaie dans quelques minutes.");
+  await pool.query("DELETE FROM pairings WHERE user_id = $1", [userId]);
+  await pool.query(
+    "INSERT INTO pairings(id, user_id, payload, expires_at) VALUES($1, $2, $3, now() + make_interval(secs => $4))",
+    [id, userId, payload, ttlSeconds]
+  );
+}
+
+/** Remet le paquet chiffré et le supprime : un code ne sert qu'une fois. */
+export async function claimPairing(pool: Pool, id: unknown): Promise<string> {
+  if (typeof id !== "string" || !/^[0-9a-f]{32,128}$/.test(id)) throw new HttpError(404, "Code inconnu ou expiré.");
+  const { rows } = await pool.query<{ payload: string }>("DELETE FROM pairings WHERE id = $1 AND expires_at >= now() RETURNING payload", [id]);
+  if (!rows[0]) throw new HttpError(404, "Code inconnu ou expiré.");
+  return rows[0].payload;
+}
+
 /** Efface toutes les données d'un utilisateur (droit à l'effacement). */
 export async function deleteAccount(pool: Pool, userId: string): Promise<void> {
   await pool.query("DELETE FROM users WHERE user_id = $1", [userId]);
@@ -159,7 +191,7 @@ function send(response: ServerResponse, status: number, body: unknown) {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Authorization, Content-Type",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Max-Age": "86400"
 };
 
@@ -179,6 +211,7 @@ function slidingLimit(max: number, windowMs: number, now: () => number = Date.no
 
 export function createApp(pool: Pool, limits: Limits = DEFAULT_LIMITS): Server {
   const newUsers = slidingLimit(limits.newUsersPerHour, 3600 * 1000);
+  const claims = slidingLimit(limits.claimsPerMinute, 60 * 1000);
   const perUser = new Map<string, ReturnType<typeof slidingLimit>>();
 
   function rateLimit(userId: string): void {
@@ -195,6 +228,13 @@ export function createApp(pool: Pool, limits: Limits = DEFAULT_LIMITS): Server {
     for (const [name, value] of Object.entries(CORS)) response.setHeader(name, value);
     try {
       if (request.method === "OPTIONS") { response.writeHead(204); response.end(); return; }
+      const path = new URL(request.url ?? "/", "http://localhost").pathname;
+      // Le nouvel appareil n'a pas encore de clé : cette route est la seule sans authentification.
+      if (request.method === "POST" && path === "/v1/pair/claim") {
+        if (!claims.allow()) throw new HttpError(429, "Trop de tentatives, réessaie dans une minute.");
+        const body = await readJson(request);
+        return send(response, 200, { payload: await claimPairing(pool, isObject(body) ? body.id : undefined) });
+      }
       const header = request.headers.authorization ?? "";
       const key = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
       if (key.length < MIN_KEY_LENGTH || key.length > MAX_KEY_LENGTH) throw new HttpError(401, "Clé de synchronisation invalide.");
@@ -209,6 +249,11 @@ export function createApp(pool: Pool, limits: Limits = DEFAULT_LIMITS): Server {
         const limit = Number(url.searchParams.get("limit") ?? 500);
         if (!Number.isFinite(since) || since < 0 || !Number.isFinite(limit)) throw new HttpError(400, "Paramètres invalides.");
         return send(response, 200, await pull(pool, userId, since, limit));
+      }
+      if (request.method === "PUT" && url.pathname.startsWith("/v1/pair/")) {
+        const body = await readJson(request);
+        await offerPairing(pool, userId, url.pathname.slice("/v1/pair/".length), isObject(body) ? body.payload : undefined, limits.pairingTtlSeconds);
+        return send(response, 200, { ok: true, expiresInSeconds: limits.pairingTtlSeconds });
       }
       if (request.method === "DELETE" && url.pathname === "/v1/account") { await deleteAccount(pool, userId); return send(response, 200, { ok: true }); }
       throw new HttpError(404, "Route inconnue.");

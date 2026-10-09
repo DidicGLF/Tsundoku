@@ -53,7 +53,8 @@ rien à saisir. Alternative avec un nom de domaine à toi : Cloudflare Tunnel (`
 ## 4. Dans l'application
 
 Paramètres → Synchronisation → « Activer la synchronisation ». Pour un deuxième appareil : « Lier un autre appareil »
-affiche un QR code (ou la clé en texte) ; l'autre appareil choisit « J'ai déjà une clé ».
+affiche un code court du genre `K7M4-QX2R` (5 minutes, une seule utilisation) ; l'autre appareil choisit « J'ai déjà une clé » et le tape.
+Le serveur ne garde que la clé chiffrée par ce code (table `pairings`), jamais la clé ni le code.
 
 ## Notes
 

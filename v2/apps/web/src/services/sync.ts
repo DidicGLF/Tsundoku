@@ -1,4 +1,5 @@
-import { createHttpTransport, SyncServerError, type SyncReport } from "@tsundoku/database";
+import { claimPairing, createHttpTransport, SyncServerError, type SyncReport } from "@tsundoku/database";
+import { formatPairingCode, generatePairingCode, normalizePairingCode, openKey, pairingIdOf, sealKey } from "../lib/pairing";
 import { generateSyncKey, parseSyncKey } from "../lib/sync-key";
 import { deleteSecret, getSecret, setSecret } from "./credentials";
 import { syncLibrary, type LibraryBook } from "./library";
@@ -67,6 +68,30 @@ export async function enableSync(options: { existingKey?: string; customUrl?: st
   } catch { /* le stockage local est requis : sans lui, la synchro ne tiendrait pas au redémarrage */ throw new Error("Stockage de l'appareil indisponible."); }
   await setSecret(KEY_SECRET, key);
   return key;
+}
+
+/** Un code de liaison à taper sur l'autre appareil : la clé, chiffrée par ce code, attend quelques minutes sur le serveur. */
+export async function createPairingCode(): Promise<{ code: string; expiresAt: number }> {
+  const config = await getSyncConfig();
+  if (!config) throw new Error("La synchronisation n'est pas activée sur cet appareil.");
+  const code = generatePairingCode();
+  const { id, payload } = await sealKey(code, config.key);
+  const { expiresInSeconds } = await createHttpTransport(config.url, config.key).offerPairing(id, payload);
+  return { code: formatPairingCode(code), expiresAt: Date.now() + expiresInSeconds * 1000 };
+}
+
+/** Rejoint une bibliothèque avec un code de liaison, ou avec la clé elle-même (copiée ou lue dans un QR code). */
+export async function joinSync(input: string, customUrl?: string): Promise<void> {
+  const trimmed = input.trim();
+  let key = parseSyncKey(trimmed);
+  if (!key) {
+    const code = normalizePairingCode(trimmed);
+    if (!code) throw new Error("Ce n'est ni un code de liaison (8 caractères, comme K7M4-QX2R) ni une clé de synchronisation.");
+    const url = customUrl?.trim() ? normalizeServerUrl(customUrl) : serverUrl();
+    if (!url) throw new Error("Aucune adresse de serveur : renseigne-la dans les réglages avancés.");
+    key = await openKey(code, await claimPairing(url, await pairingIdOf(code)));
+  }
+  await enableSync({ existingKey: key, customUrl });
 }
 
 /** Arrête la synchronisation sur cet appareil ; la clé est conservée pour pouvoir la réactiver. */

@@ -2,8 +2,8 @@ import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react
 import { plural } from "../lib/library-view";
 import { canScanBarcode, scanQrText } from "../services/barcodeScanner";
 import {
-  DEFAULT_SERVER_URL, deleteServerData, disableSync, enableSync, getSyncConfig, getSyncKey, getSyncStatus, isSyncEnabled, runSync,
-  serverUrl, subscribeSync
+  createPairingCode, DEFAULT_SERVER_URL, deleteServerData, disableSync, enableSync, getSyncConfig, getSyncKey, getSyncStatus, isSyncEnabled,
+  joinSync, runSync, serverUrl, subscribeSync
 } from "../services/sync";
 import { useLibrary } from "../state/LibraryProvider";
 import { QrCode } from "./QrCode";
@@ -17,6 +17,8 @@ export function SyncSettings() {
   const [message, setMessage] = useState("");
   const [mode, setMode] = useState<"home" | "join" | "share">("home");
   const [key, setKey] = useState("");
+  const [pairing, setPairing] = useState<{ code: string; expiresAt: number } | null>(null);
+  const [now, setNow] = useState(Date.now());
   const [joinKey, setJoinKey] = useState("");
   const [advancedUrl, setAdvancedUrl] = useState("");
   const hasServer = Boolean(serverUrl());
@@ -25,11 +27,19 @@ export function SyncSettings() {
     void getSyncConfig().then(config => setEnabled(Boolean(config)), () => undefined);
   }, []);
 
-  async function activate(existingKey?: string) {
+  // Compte à rebours du code de liaison.
+  useEffect(() => {
+    if (!pairing) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [pairing]);
+
+  async function activate(joinInput?: string) {
     setBusy(true);
     setMessage("");
     try {
-      await enableSync({ existingKey, customUrl: advancedUrl || undefined });
+      if (joinInput !== undefined) await joinSync(joinInput, advancedUrl || undefined);
+      else await enableSync({ customUrl: advancedUrl || undefined });
       setEnabled(true);
       setMode("home");
       setJoinKey("");
@@ -62,10 +72,22 @@ export function SyncSettings() {
     }
   }
 
-  async function showKey() {
-    setKey((await getSyncKey()) ?? "");
-    setMode("share");
+  async function showPairing() {
+    setBusy(true);
+    setMessage("");
+    try {
+      setKey((await getSyncKey()) ?? "");
+      setPairing(await createPairingCode());
+      setNow(Date.now());
+      setMode("share");
+    } catch (x) {
+      setMessage(x instanceof Error ? x.message : "Impossible de créer un code de liaison.");
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const secondsLeft = pairing ? Math.max(0, Math.round((pairing.expiresAt - now) / 1000)) : 0;
 
   async function syncNow() {
     setBusy(true);
@@ -126,9 +148,9 @@ export function SyncSettings() {
     </div>}
 
     {!enabled && mode === "join" && <form className="credential-form" onSubmit={(e: FormEvent) => { e.preventDefault(); void activate(joinKey); }}>
-      <p className="settings-help">Sur l'autre appareil : Paramètres → Synchronisation → « Lier un autre appareil ». Scanne le QR code ou recopie la clé.</p>
-      <label>Clé de synchronisation
-        <input autoComplete="off" autoCapitalize="off" spellCheck={false} value={joinKey} onChange={e => setJoinKey(e.target.value)} placeholder="Colle la clé ici…" />
+      <p className="settings-help">Sur l'autre appareil : Paramètres → Synchronisation → « Lier un autre appareil ». Tape le code de liaison affiché (par exemple K7M4-QX2R) ou scanne son QR code.</p>
+      <label>Code de liaison
+        <input className="pairing-input" autoComplete="off" autoCapitalize="characters" spellCheck={false} value={joinKey} onChange={e => setJoinKey(e.target.value)} placeholder="K7M4-QX2R" />
       </label>
       <div className="credential-actions">
         <button disabled={busy || dbState !== "ready" || !joinKey.trim()}>{busy ? "Connexion…" : "Rejoindre"}</button>
@@ -141,18 +163,27 @@ export function SyncSettings() {
       <p className="settings-help" role="status">{summary}</p>
       <div className="credential-actions">
         <button type="button" disabled={busy || dbState !== "ready"} onClick={() => void syncNow()}>Synchroniser maintenant</button>
-        <button type="button" className="secondary-inline" disabled={busy} onClick={() => void showKey()}>Lier un autre appareil</button>
+        <button type="button" className="secondary-inline" disabled={busy} onClick={() => void showPairing()}>Lier un autre appareil</button>
       </div>
     </>}
 
-    {enabled && mode === "share" && <div className="sync-share">
-      <p className="settings-help">Sur l'autre appareil, choisis « J'ai déjà une clé », puis scanne ce code ou recopie la clé. Garde-la pour toi : elle donne accès à ta bibliothèque.</p>
-      {key && <QrCode value={key} />}
-      <code className="sync-key">{key}</code>
+    {enabled && mode === "share" && pairing && <div className="sync-share">
+      <p className="settings-help">Sur l'autre appareil, choisis « J'ai déjà une clé » et tape ce code :</p>
+      <p className="pairing-code" aria-live="polite">{secondsLeft > 0 ? pairing.code : "Code expiré"}</p>
+      <p className="settings-help">{secondsLeft > 0
+        ? `Valable encore ${Math.floor(secondsLeft / 60)} min ${String(secondsLeft % 60).padStart(2, "0")} s, utilisable une seule fois.`
+        : "Demande un nouveau code."}</p>
       <div className="credential-actions">
-        <button type="button" className="secondary-inline" onClick={() => void navigator.clipboard?.writeText(key).then(() => setMessage("Clé copiée."), () => setMessage("Copie impossible : recopie-la à la main."))}>Copier la clé</button>
-        <button type="button" className="secondary-inline" onClick={() => { setMode("home"); setKey(""); }}>Fermer</button>
+        <button type="button" disabled={busy} onClick={() => void showPairing()}>Nouveau code</button>
+        <button type="button" className="secondary-inline" onClick={() => { setMode("home"); setKey(""); setPairing(null); }}>Fermer</button>
       </div>
+      <details className="sync-advanced">
+        <summary>Autre méthode : QR code ou clé</summary>
+        <p className="settings-help">Cette clé donne accès à ta bibliothèque, ne la partage qu'avec toi-même.</p>
+        {key && <QrCode value={key} />}
+        <code className="sync-key">{key}</code>
+        <button type="button" className="secondary-inline" onClick={() => void navigator.clipboard?.writeText(key).then(() => setMessage("Clé copiée."), () => setMessage("Copie impossible : recopie-la à la main."))}>Copier la clé</button>
+      </details>
     </div>}
 
     {enabled && mode === "home" && <details className="sync-advanced">

@@ -14,5 +14,7 @@ createApp(pool, {
   maxUsers: Number(process.env.MAX_USERS ?? DEFAULT_LIMITS.maxUsers),
   maxEntriesPerUser: Number(process.env.MAX_ENTRIES_PER_USER ?? DEFAULT_LIMITS.maxEntriesPerUser),
   requestsPerMinute: DEFAULT_LIMITS.requestsPerMinute,
-  newUsersPerHour: Number(process.env.NEW_USERS_PER_HOUR ?? DEFAULT_LIMITS.newUsersPerHour)
+  newUsersPerHour: Number(process.env.NEW_USERS_PER_HOUR ?? DEFAULT_LIMITS.newUsersPerHour),
+  pairingTtlSeconds: DEFAULT_LIMITS.pairingTtlSeconds,
+  claimsPerMinute: DEFAULT_LIMITS.claimsPerMinute
 }).listen(port, host, () => console.log(`Tsundoku sync : http://${host}:${port}`));

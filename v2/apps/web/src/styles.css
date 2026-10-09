@@ -2191,3 +2191,19 @@ select {
   cursor: pointer;
   margin-bottom: 8px;
 }
+
+.pairing-code {
+  margin: 6px 0;
+  font-family: var(--font-display);
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--accent-text);
+  user-select: all;
+}
+
+.pairing-input {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 20px;
+}

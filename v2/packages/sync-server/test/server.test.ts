@@ -1,7 +1,8 @@
 import type { AddressInfo } from "node:net";
 import pg from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHttpTransport, runMigrations, SqliteLibraryRepository, syncOnce, SyncServerError } from "../../database/src/index";
+import { claimPairing, createHttpTransport, runMigrations, SqliteLibraryRepository, syncOnce, SyncServerError } from "../../database/src/index";
+import { generatePairingCode, openKey, pairingIdOf, sealKey } from "../../../apps/web/src/lib/pairing";
 import { createApp, DEFAULT_LIMITS, prepareDatabase, type Limits } from "../src/app";
 import { createTestAdapter } from "../../database/test/sqljs-adapter";
 
@@ -192,5 +193,62 @@ describe.skipIf(!databaseUrl)("serveur de synchronisation (PostgreSQL réel)", (
     const phone = await device();
     await phone.add({ source: "bnf", sourceId: "1", title: "Dune", authors: ["A"], isbn13: "9780441172719" });
     await expect(syncOnce(phone, createHttpTransport(baseUrl, KEY))).resolves.toMatchObject({ pushed: 1 });
+  });
+
+  it("links a new device with a short code, without the server ever seeing the key", async () => {
+    const mine = await device();
+    await mine.add({ source: "bnf", sourceId: "1", title: "Dune", authors: ["A"], isbn13: "9780441172719" });
+    await syncOnce(mine, createHttpTransport(baseUrl, KEY));
+
+    const code = generatePairingCode();
+    const sealed = await sealKey(code, KEY);
+    expect((await createHttpTransport(baseUrl, KEY).offerPairing(sealed.id, sealed.payload)).expiresInSeconds).toBe(300);
+    const stored = (await pool.query("SELECT id, payload FROM pairings")).rows;
+    expect(JSON.stringify(stored)).not.toContain(KEY);
+    expect(JSON.stringify(stored)).not.toContain(code);
+
+    // L'autre appareil n'a que le code : il retrouve la clé, puis la bibliothèque.
+    const key = await openKey(code, await claimPairing(baseUrl, await pairingIdOf(code)));
+    expect(key).toBe(KEY);
+    const other = await device();
+    await syncOnce(other, createHttpTransport(baseUrl, key));
+    expect((await other.list()).map(b => b.title)).toEqual(["Dune"]);
+  });
+
+  it("serves a pairing code only once, and unknown or malformed ones get the same answer", async () => {
+    const code = generatePairingCode();
+    const sealed = await sealKey(code, KEY);
+    await createHttpTransport(baseUrl, KEY).offerPairing(sealed.id, sealed.payload);
+    await expect(claimPairing(baseUrl, sealed.id)).resolves.toBe(sealed.payload);
+    await expect(claimPairing(baseUrl, sealed.id)).rejects.toThrow(/inconnu ou expiré/);
+    await expect(claimPairing(baseUrl, "a".repeat(64))).rejects.toThrow(/inconnu ou expiré/);
+    await expect(claimPairing(baseUrl, "n'importe quoi")).rejects.toThrow(/inconnu ou expiré/);
+  });
+
+  it("expires a pairing code, and a new code replaces the previous one of the same user", async () => {
+    const short = await start({ pairingTtlSeconds: 0 });
+    const first = await sealKey("AAAAAAAA", KEY);
+    await createHttpTransport(short, KEY).offerPairing(first.id, first.payload);
+    await expect(claimPairing(short, first.id)).rejects.toThrow(/inconnu ou expiré/);
+
+    const a = await sealKey("BBBBBBBB", KEY);
+    const b = await sealKey("CCCCCCCC", KEY);
+    await createHttpTransport(baseUrl, KEY).offerPairing(a.id, a.payload);
+    await createHttpTransport(baseUrl, KEY).offerPairing(b.id, b.payload);
+    await expect(claimPairing(baseUrl, a.id)).rejects.toThrow(/inconnu ou expiré/);
+    await expect(claimPairing(baseUrl, b.id)).resolves.toBe(b.payload);
+  });
+
+  it("requires a key to create a pairing code, and rate-limits the claims", async () => {
+    const sealed = await sealKey("AAAAAAAA", KEY);
+    const anonymous = await fetch(`${baseUrl}/v1/pair/${sealed.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payload: sealed.payload }) });
+    expect(anonymous.status).toBe(401);
+    const bad = await fetch(`${baseUrl}/v1/pair/pas-un-id`, { method: "PUT", headers: { Authorization: `Bearer ${KEY}` }, body: JSON.stringify({ payload: "x" }) });
+    expect(bad.status).toBe(400);
+
+    const strict = await start({ claimsPerMinute: 2 });
+    await expect(claimPairing(strict, "a".repeat(64))).rejects.toThrow(/inconnu ou expiré/);
+    await expect(claimPairing(strict, "a".repeat(64))).rejects.toThrow(/inconnu ou expiré/);
+    await expect(claimPairing(strict, "a".repeat(64))).rejects.toThrow(/Trop de tentatives/);
   });
 });

@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS followed (
   PRIMARY KEY (user_id, author_key)
 );
 CREATE INDEX IF NOT EXISTS followed_user_seq ON followed(user_id, seq);
+
+-- Codes de liaison : la clé de synchronisation, chiffrée par l'appareil avec le code court, valable quelques minutes
+-- et à usage unique. Le serveur ne connaît ni le code ni la clé.
+CREATE TABLE IF NOT EXISTS pairings (
+  id         text PRIMARY KEY,
+  user_id    text NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+  payload    text NOT NULL,
+  expires_at timestamptz NOT NULL
+);
 `;
 
 /** Première version (un seul jeton, sans utilisateurs) : ses tables sont mises de côté, pas supprimées. */

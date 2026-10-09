@@ -73,8 +73,9 @@ fois (quelques secondes, réseau nécessaire). Seul un EAN-13 en 978/979 à clé
 Chaque appareil garde sa base complète (il marche hors ligne) et se synchronise avec le serveur de l'application
 (`packages/sync-server` : Node + PostgreSQL). L'utilisateur n'installe rien d'autre que l'app : « Activer la
 synchronisation » génère une clé secrète aléatoire (stockage sécurisé) qui identifie sa bibliothèque ; le serveur ne
-garde que son empreinte, pas de compte ni d'e-mail. Un autre appareil rejoint la même bibliothèque en scannant le QR
-code (ou en collant la clé). Unité échangée : la fiche de bibliothèque entière ; la version modifiée en dernier
+garde que son empreinte, pas de compte ni d'e-mail. Un autre appareil rejoint la même bibliothèque avec un **code de liaison** court
+(8 caractères, valable 5 minutes, à usage unique) tapé sur le nouvel appareil, ou en scannant le QR code de la clé. Le code
+sert à chiffrer la clé (PBKDF2 + AES-GCM) avant son dépôt sur le serveur, qui ne voit donc jamais la clé. Unité échangée : la fiche de bibliothèque entière ; la version modifiée en dernier
 gagne, les suppressions se propagent. L'utilisateur peut tout effacer du serveur depuis l'app.
 Les secrets (clé Google, clé de synchronisation) ne sont jamais synchronisés.
 
