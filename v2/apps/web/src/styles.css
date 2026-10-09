@@ -2207,3 +2207,50 @@ select {
   letter-spacing: 0.1em;
   font-size: 20px;
 }
+
+.deleted-groups {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.deleted-group {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.deleted-group summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: pointer;
+}
+
+.deleted-group summary em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.deleted-group ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.deleted-group li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.danger-text {
+  color: var(--danger, #b3261e);
+}

@@ -11,17 +11,52 @@ export class SqliteLibraryRepository {
   constructor(private readonly db: SqliteAdapter, private readonly userId = LOCAL_USER) {}
 
   async list(): Promise<StoredLibraryBook[]> {
-    return this.readEntries(false);
+    return this.readEntries("live");
+  }
+
+  /** Books removed since `since` (ISO date), most recently removed first: what the « recently deleted » screen offers to restore. */
+  async listRecentlyDeleted(since: string): Promise<SyncEntry[]> {
+    const deleted = await this.readEntries("deleted", since);
+    return deleted.sort((a, b) => (b.deletedAt ?? "").localeCompare(a.deletedAt ?? ""));
+  }
+
+  /** Brings removed books back (they are written as new versions, so the other devices get them back too). */
+  async restore(ids: string[]): Promise<void> {
+    if (!ids.length) return;
+    const now = new Date().toISOString();
+    await this.db.transaction(async () => {
+      for (const id of ids) {
+        await this.db.execute("UPDATE user_books SET deleted_at = NULL, updated_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NOT NULL", [now, id, this.userId]);
+      }
+    });
+  }
+
+  async restoreFollowedAuthor(authorKey: string): Promise<void> {
+    const now = new Date().toISOString();
+    await this.db.execute("UPDATE followed_authors SET deleted_at = NULL, updated_at = ? WHERE author_key = ? AND deleted_at IS NOT NULL", [now, authorKey]);
+  }
+
+  /** Removes every book and every followed author (soft delete: everything can be restored afterwards). Returns how many books. */
+  async removeAll(): Promise<number> {
+    const now = new Date().toISOString();
+    let removed = 0;
+    await this.db.transaction(async () => {
+      removed = (await this.db.execute(
+        "UPDATE user_books SET deleted_at = ?, updated_at = ? WHERE user_id = ? AND deleted_at IS NULL", [now, now, this.userId]
+      )).rowsAffected;
+      await this.db.execute("UPDATE followed_authors SET deleted_at = ?, updated_at = ? WHERE deleted_at IS NULL", [now, now]);
+    });
+    return removed;
   }
 
   /** Entries (deleted ones included) written at or after `since`: what the next sync has to send. */
   async changesSince(since: string): Promise<SyncEntry[]> {
-    return this.readEntries(true, since);
+    return this.readEntries("changed", since);
   }
 
-  private async readEntries(withDeleted: boolean, since?: string): Promise<SyncEntry[]> {
-    const scope = withDeleted ? "ub.updated_at >= ?" : "ub.deleted_at IS NULL";
-    const scopeParams = withDeleted ? [since ?? ""] : [];
+  private async readEntries(mode: "live" | "changed" | "deleted", since?: string): Promise<SyncEntry[]> {
+    const scope = mode === "changed" ? "ub.updated_at >= ?" : mode === "deleted" ? "ub.deleted_at IS NOT NULL AND ub.deleted_at >= ?" : "ub.deleted_at IS NULL";
+    const scopeParams = mode === "live" ? [] : [since ?? ""];
     const rows = await this.db.query<Row>(
       `SELECT
         ub.id AS id, b.id AS book_id,

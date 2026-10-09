@@ -5,10 +5,12 @@ import { Check, ChevronLeft, Heart, BookOpen, Star } from "../components/Icons";
 import { Cover, hueOf } from "../components/Cover";
 import { CoverPicker } from "../components/CoverPicker";
 import {
-  bookDatesLine, displayAuthors, displayTitle, pageReached, primaryAuthor, progressUpdateFor, ratingLabels, readPercent
+  bookDatesLine, displayAuthors, displayTitle, pageReached, primaryAuthor, progressUpdateFor, ratingLabels, readPercent,
+  deletionNotice
 } from "../lib/library-view";
 import { getBookLanguageName } from "../services/language";
 import type { SimilarBooksQuery } from "../services/bookSearch";
+import { isSyncEnabled } from "../services/sync";
 import { removeBookFromLibrary, setBookCover, setBookEditionByIsbn, updateLibraryBook, type LibraryBook } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
@@ -44,7 +46,7 @@ export function BookDetailScreen({ book, onFindSimilar }: { book: LibraryBook; o
 
   async function remove() {
     if (deleteBusy) return;
-    if (!window.confirm(`Retirer « ${displayTitle(book.title)} » de ta bibliothèque ?\n\nSon statut, sa note et sa progression seront aussi supprimés.`)) return;
+    if (!window.confirm(`Retirer « ${displayTitle(book.title)} » de ta bibliothèque ?\n\nSon statut, sa note et sa progression seront aussi supprimés.${deletionNotice(isSyncEnabled())}`)) return;
     setDeleteBusy(true);
     setError("");
     try {

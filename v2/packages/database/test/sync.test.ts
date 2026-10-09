@@ -234,4 +234,26 @@ describe("sync", () => {
     await phone.applyRemote([{ ...local, rating: 3, updatedAt: at(20) }]);
     expect((await phone.list())[0].rating).toBe(3);
   });
+
+  it("a restore on one device brings the books back on the other, and a delete-all is undone everywhere", async () => {
+    await phone.add(dune);
+    await phone.add(hyperion);
+    const t = server.transport();
+    await syncOnce(phone, t, clock);
+    await syncOnce(pc, t, clock);
+
+    await sleep();
+    expect(await pc.removeAll()).toBe(2);
+    await syncOnce(pc, t, clock);
+    await syncOnce(phone, t, clock);
+    expect(await phone.list()).toHaveLength(0);
+
+    await sleep();
+    const deleted = await phone.listRecentlyDeleted("2000-01-01T00:00:00.000Z");
+    await phone.restore(deleted.map(entry => entry.id));
+    await syncOnce(phone, t, clock);
+    await syncOnce(pc, t, clock);
+    expect((await pc.list()).map(b => b.title).sort()).toEqual(["Dune", "Hypérion"]);
+    expect((await pc.list()).find(b => b.title === "Dune")).toMatchObject({ authors: ["Frank Herbert"], seriesName: "Cycle de Dune" });
+  });
 });

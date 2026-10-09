@@ -23,6 +23,40 @@ export function latestUpdate(library: LibraryBook[]): string {
   return library.reduce((latest, book) => (book.updatedAt > latest ? book.updatedAt : latest), "");
 }
 
+/** Fenêtre pendant laquelle un livre supprimé reste restaurable depuis les paramètres. */
+export const RESTORE_WINDOW_DAYS = 30;
+
+/** Phrase à ajouter aux confirmations de suppression : conséquences sur les autres appareils, et possibilité de restaurer. */
+export function deletionNotice(syncEnabled: boolean): string {
+  return `${syncEnabled ? "\n\nLa synchronisation est active : ils seront aussi retirés de tes autres appareils." : ""}` +
+    `\n\nTu pourras les restaurer pendant ${RESTORE_WINDOW_DAYS} jours : Paramètres → Livres supprimés.`;
+}
+
+export interface DeletedGroup {
+  author: string;
+  key: string;
+  books: Array<LibraryBook & { deletedAt?: string }>;
+  /** Date de la suppression la plus récente du groupe. */
+  deletedAt: string;
+}
+
+/** Les livres supprimés regroupés par auteur, l'auteur supprimé le plus récemment en premier. */
+export function groupDeletedByAuthor(books: Array<LibraryBook & { deletedAt?: string }>): DeletedGroup[] {
+  const groups = new Map<string, DeletedGroup>();
+  for (const book of books) {
+    const author = primaryAuthor(book);
+    const key = canonicalAuthorIdentity(author);
+    const deletedAt = book.deletedAt ?? "";
+    const group = groups.get(key) ?? { author, key, books: [], deletedAt };
+    group.books.push(book);
+    if (deletedAt > group.deletedAt) group.deletedAt = deletedAt;
+    groups.set(key, group);
+  }
+  return [...groups.values()]
+    .map(group => ({ ...group, books: [...group.books].sort((a, b) => a.title.localeCompare(b.title, "fr")) }))
+    .sort((a, b) => b.deletedAt.localeCompare(a.deletedAt));
+}
+
 /** Titre à afficher : sans la mention de responsabilité du catalogue (« / David Eddings ; [trad. …] »). */
 export function displayTitle(title: string): string {
   return title.split(/\s\/\s?/)[0].trim() || title;

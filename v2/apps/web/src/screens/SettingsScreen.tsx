@@ -3,6 +3,8 @@ import type { BookSearchLanguage } from "../services/bookSearch";
 import { deleteGoogleBooksApiKey, hasGoogleBooksApiKey, saveGoogleBooksApiKey } from "../services/credentials";
 import { exportBackup, lastBackupAt, previewImport } from "../services/backup";
 import { plural } from "../lib/library-view";
+import { DangerZone } from "../components/DangerZone";
+import { DeletedBooks } from "../components/DeletedBooks";
 import { SyncSettings } from "../components/SyncSettings";
 import { useLibrary } from "../state/LibraryProvider";
 import { usePreferences } from "../state/PreferencesProvider";
@@ -106,6 +108,7 @@ export function SettingsScreen() {
       </div>
       {backupMessage && <p className="credential-message" role="status">{backupMessage}</p>}
     </div>
+    <DeletedBooks />
     <div className="settings-section settings-divider">
       <p className="eyebrow">Recherche de livres</p>
       <h2>Langue préférée</h2>
@@ -152,5 +155,6 @@ export function SettingsScreen() {
       </form>
       {message && <p className="credential-message">{message}</p>}
     </div>
+    <DangerZone />
   </section>;
 }

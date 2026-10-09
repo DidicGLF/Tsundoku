@@ -1,4 +1,4 @@
-import { cleanIsbn, isbn10To13, isbn13To10, type BookSearchResult } from "@tsundoku/book-sources";
+import { canonicalAuthorIdentity, cleanIsbn, isbn10To13, isbn13To10, type BookSearchResult } from "@tsundoku/book-sources";
 import {
   SqliteLibraryRepository,
   runMigrations,
@@ -12,7 +12,7 @@ import {
   type LibraryBookUpdate,
 } from "@tsundoku/database";
 import { applyImportTo, type BackupFile, type ImportPlan, type ImportReport } from "../lib/backup";
-import { completeAuthorNames, createWorkIndex, editionOf, findLocalWork, planDuplicateMerges } from "../lib/library-view";
+import { completeAuthorNames, createWorkIndex, editionOf, findLocalWork, planDuplicateMerges, primaryAuthor, RESTORE_WINDOW_DAYS } from "../lib/library-view";
 import { toNewBook } from "../lib/new-book";
 import { searchBooks } from "./bookSearch";
 import { createSqliteAdapter } from "../database/createSqliteAdapter";
@@ -225,6 +225,25 @@ export async function clearNewlyDiscoveredBooks(ids: string[]): Promise<StoredLi
   const repo = await repository();
   for (const id of ids) await repo.update(id, { newlyDiscovered: false });
   return repo.list();
+}
+
+/** Livres supprimés pendant la fenêtre de restauration, du plus récemment supprimé au plus ancien. */
+export async function listRecentlyDeletedBooks(): Promise<Array<StoredLibraryBook & { deletedAt?: string }>> {
+  const since = new Date(Date.now() - RESTORE_WINDOW_DAYS * 24 * 3600 * 1000).toISOString();
+  return (await repository()).listRecentlyDeleted(since);
+}
+
+/** Restaure ces livres, et ré-active le suivi de leurs auteurs. */
+export async function restoreDeletedBooks(books: StoredLibraryBook[]): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  await repo.restore(books.map(book => book.id));
+  for (const key of new Set(books.map(book => canonicalAuthorIdentity(primaryAuthor(book))))) await repo.restoreFollowedAuthor(key);
+  return repo.list();
+}
+
+/** Supprime tout (livres et auteurs suivis) ; restaurable pendant la fenêtre de restauration. */
+export async function deleteWholeLibrary(): Promise<number> {
+  return (await repository()).removeAll();
 }
 
 export type LibraryBook = StoredLibraryBook;

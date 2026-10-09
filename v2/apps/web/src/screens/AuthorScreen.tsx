@@ -4,10 +4,11 @@ import { useAuthorInfo } from "../hooks/useAuthorInfo";
 import { formatLifespan } from "../lib/author-info";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  authorStats, booksOfAuthor, displayTitle, filterAuthorBooks, formatRefreshDate, groupBySeries, initialsOf, plural,
+  authorStats, booksOfAuthor, deletionNotice, displayTitle, filterAuthorBooks, formatRefreshDate, groupBySeries, initialsOf, plural,
   type AuthorBookFilter, type AuthorBookSort
 } from "../lib/library-view";
 import { enrichLibraryBooks, refreshAuthor, unfollowAuthor } from "../services/authorLibrary";
+import { isSyncEnabled } from "../services/sync";
 import { getFollowedAuthor, updateLibraryBook, updateLibraryBooks } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
@@ -90,7 +91,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
   async function remove() {
     if (deleteBusy || books.length === 0) return;
     const confirmed = window.confirm(
-      `Supprimer ${authorName || "cet auteur"} et toute sa bibliographie suivie de Tsundoku ?\n\n${books.length} ${plural(books.length, "livre")} ${plural(books.length, "sera", "seront")} retiré${books.length > 1 ? "s" : ""} de la bibliothèque locale, avec leurs statuts Possédé/Lu.`
+      `Supprimer ${authorName || "cet auteur"} et toute sa bibliographie suivie de Tsundoku ?\n\n${books.length} ${plural(books.length, "livre")} ${plural(books.length, "sera", "seront")} retiré${books.length > 1 ? "s" : ""} de la bibliothèque locale, avec leurs statuts Possédé/Lu.${deletionNotice(isSyncEnabled())}`
     );
     if (!confirmed) return;
     setDeleteBusy(true);

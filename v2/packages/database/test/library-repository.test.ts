@@ -311,3 +311,50 @@ describe("followed authors", () => {
     expect(await repo.getFollowedAuthor("frank herbert")).toBeNull();
   });
 });
+
+describe("recently deleted, restore and remove all", () => {
+  const hyperion: NewLibraryBook = { source: "bnf", sourceId: "b1", title: "Hypérion", authors: ["Dan Simmons"], isbn13: "9782070415236" };
+
+  it("lists the removed books, most recent first, within the window only", async () => {
+    await repo.add(dune);
+    await repo.add(hyperion);
+    const [a, b] = await repo.list();
+    await db.execute("UPDATE user_books SET deleted_at = '2026-01-01T00:00:00.000Z', updated_at = '2026-01-01T00:00:00.000Z' WHERE id = ?", [a.id]);
+    await db.execute("UPDATE user_books SET deleted_at = '2026-03-01T00:00:00.000Z', updated_at = '2026-03-01T00:00:00.000Z' WHERE id = ?", [b.id]);
+    expect((await repo.listRecentlyDeleted("2025-12-01T00:00:00.000Z")).map(x => x.id)).toEqual([b.id, a.id]);
+    expect((await repo.listRecentlyDeleted("2026-02-01T00:00:00.000Z")).map(x => x.id)).toEqual([b.id]);
+    expect(await repo.list()).toHaveLength(0);
+  });
+
+  it("restores removed books with all their data, as a new version", async () => {
+    await repo.add(dune);
+    const [book] = await repo.list();
+    await repo.update(book.id, { status: "READ", rating: 5, favorite: true });
+    const before = (await repo.list())[0];
+    await repo.remove(book.id);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    await repo.restore([book.id]);
+    const [back] = await repo.list();
+    expect(back).toMatchObject({ id: book.id, title: "Dune", status: "READ", rating: 5, favorite: true, authors: ["Frank Herbert"], seriesName: "Dune" });
+    expect(back.updatedAt > before.updatedAt).toBe(true);
+    await repo.restore([book.id, "inconnu"]); // idempotent, ignore les identifiants inconnus
+    expect(await repo.list()).toHaveLength(1);
+  });
+
+  it("removes everything, restorably, followed authors included", async () => {
+    await repo.add(dune);
+    await repo.add(hyperion);
+    await repo.upsertFollowedAuthor("frank herbert", "Frank Herbert", "2026-02-01T00:00:00Z");
+    expect(await repo.removeAll()).toBe(2);
+    expect(await repo.list()).toHaveLength(0);
+    expect(await repo.listFollowedAuthors()).toHaveLength(0);
+    const deleted = await repo.listRecentlyDeleted("2000-01-01T00:00:00.000Z");
+    expect(deleted).toHaveLength(2);
+    await repo.restore(deleted.map(x => x.id));
+    await repo.restoreFollowedAuthor("frank herbert");
+    expect(await repo.list()).toHaveLength(2);
+    expect(await repo.listFollowedAuthors()).toHaveLength(1);
+    expect(await repo.removeAll()).toBe(2);
+    expect(await repo.removeAll()).toBe(0);
+  });
+});

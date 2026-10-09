@@ -475,3 +475,25 @@ describe("latestUpdate", () => {
       .toBe("2026-03-01T00:00:00.000Z");
   });
 });
+
+describe("deletion safety net helpers", () => {
+  it("groups removed books by author, most recently removed author first", async () => {
+    const { groupDeletedByAuthor } = await import("../src/lib/library-view");
+    const groups = groupDeletedByAuthor([
+      { ...book({ title: "Fondation", authors: ["Isaac Asimov"] }), deletedAt: "2026-10-09T09:10:14.000Z" },
+      { ...book({ title: "Dune", authors: ["Frank Herbert"] }), deletedAt: "2026-10-09T09:01:00.000Z" },
+      { ...book({ title: "Les Robots", authors: ["Isaac Asimov"] }), deletedAt: "2026-10-09T09:10:20.000Z" },
+      { ...book({ title: "Chasseurs", authors: ["Frank Herbert"] }), deletedAt: "2026-10-09T09:02:00.000Z" }
+    ]);
+    expect(groups.map(g => [g.author, g.books.map(b => b.title), g.deletedAt])).toEqual([
+      ["Isaac Asimov", ["Fondation", "Les Robots"], "2026-10-09T09:10:20.000Z"],
+      ["Frank Herbert", ["Chasseurs", "Dune"], "2026-10-09T09:02:00.000Z"]
+    ]);
+  });
+  it("warns about the other devices only when sync is on, and always about the restore window", async () => {
+    const { deletionNotice } = await import("../src/lib/library-view");
+    expect(deletionNotice(true)).toContain("autres appareils");
+    expect(deletionNotice(false)).not.toContain("autres appareils");
+    expect(deletionNotice(false)).toContain("30 jours");
+  });
+});
