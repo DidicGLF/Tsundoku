@@ -463,3 +463,22 @@ export function bookDatesLine(book: Pick<LibraryBook, "status" | "addedAt" | "st
   }
   return `Dans ma pile depuis le ${day(book.addedAt)}`;
 }
+
+/** Nombre de livres montrés dans chaque bloc de l'accueil. */
+export const HOME_SHELF_SIZE = 8;
+
+/** Nouveautés : œuvres détectées chez les auteurs suivis que l'on ne possède pas encore, les plus récentes d'abord. */
+export function newReleases(library: LibraryBook[], limit = HOME_SHELF_SIZE): LibraryBook[] {
+  return library
+    .filter(book => book.newlyDiscovered && !book.owned)
+    .sort((a, b) => (b.publishedYear ?? 0) - (a.publishedYear ?? 0) || b.addedAt.localeCompare(a.addedAt) || a.id.localeCompare(b.id))
+    .slice(0, limit);
+}
+
+/** Derniers ajouts : livres possédés, les plus récemment ajoutés d'abord. */
+export function recentAdditions(library: LibraryBook[], limit = HOME_SHELF_SIZE): LibraryBook[] {
+  return library
+    .filter(book => book.owned)
+    .sort((a, b) => b.addedAt.localeCompare(a.addedAt) || a.id.localeCompare(b.id))
+    .slice(0, limit);
+}

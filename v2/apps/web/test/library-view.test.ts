@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authorInitial, authorStats, booksOfAuthor, filterAuthorBooks, filterLibrary, findNewWorks, groupByAuthor,
-  libraryFilterCounts, plural, progressPercent, sortLibrary
+  libraryFilterCounts, newReleases, plural, progressPercent, recentAdditions, sortLibrary
 } from "../src/lib/library-view";
 import type { LibraryBook } from "../src/services/library";
 
@@ -495,5 +495,34 @@ describe("deletion safety net helpers", () => {
     expect(deletionNotice(true)).toContain("autres appareils");
     expect(deletionNotice(false)).not.toContain("autres appareils");
     expect(deletionNotice(false)).toContain("30 jours");
+  });
+});
+
+describe("blocs de l'accueil", () => {
+  it("nouveautés : seulement les œuvres détectées et non possédées, les plus récentes d'abord", () => {
+    const old = book({ title: "Ancien", owned: false, newlyDiscovered: true, publishedYear: 2019 });
+    const recent = book({ title: "Récent", owned: false, newlyDiscovered: true, publishedYear: 2026 });
+    const owned = book({ title: "Déjà là", owned: true, newlyDiscovered: true, publishedYear: 2026 });
+    const plain = book({ title: "Normal", owned: false, newlyDiscovered: false, publishedYear: 2026 });
+    expect(newReleases([old, owned, plain, recent]).map(b => b.title)).toEqual(["Récent", "Ancien"]);
+  });
+
+  it("nouveautés : plafonnées, sans année en dernier", () => {
+    const list = Array.from({ length: 12 }, (_, i) => book({ owned: false, newlyDiscovered: true, publishedYear: 2000 + i }));
+    expect(newReleases(list)).toHaveLength(8);
+    const noYear = book({ title: "Sans année", owned: false, newlyDiscovered: true });
+    expect(newReleases([noYear, list[0]], 2).map(b => b.title)).toEqual([list[0].title, "Sans année"]);
+  });
+
+  it("derniers ajouts : livres possédés par date d'ajout décroissante", () => {
+    const first = book({ title: "Premier", addedAt: "2026-01-01T00:00:00Z" });
+    const last = book({ title: "Dernier", addedAt: "2026-03-01T00:00:00Z" });
+    const missing = book({ title: "Manquant", owned: false, addedAt: "2026-04-01T00:00:00Z" });
+    expect(recentAdditions([first, missing, last]).map(b => b.title)).toEqual(["Dernier", "Premier"]);
+  });
+
+  it("derniers ajouts : plafonnés", () => {
+    const list = Array.from({ length: 20 }, (_, i) => book({ addedAt: `2026-02-${String(i + 1).padStart(2, "0")}T00:00:00Z` }));
+    expect(recentAdditions(list)).toHaveLength(8);
   });
 });
