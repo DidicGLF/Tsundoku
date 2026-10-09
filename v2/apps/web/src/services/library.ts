@@ -166,6 +166,13 @@ export async function updateLibraryBook(
   return repo.list();
 }
 
+/** Applique le même changement à plusieurs livres, en une transaction. */
+export async function updateLibraryBooks(ids: string[], changes: LibraryBookUpdate): Promise<StoredLibraryBook[]> {
+  const repo = await repository();
+  await repo.batch(async () => { for (const id of ids) await repo.update(id, changes); });
+  return repo.list();
+}
+
 /** Tout ce qu'une sauvegarde contient : les livres et les auteurs suivis. */
 export async function exportLibraryData(): Promise<{ library: StoredLibraryBook[]; followed: FollowedAuthor[] }> {
   const repo = await repository();

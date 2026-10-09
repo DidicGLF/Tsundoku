@@ -14,7 +14,7 @@ export const statusLabels: Record<ReadingStatus, string> = {
 };
 
 export type LibraryFilter = "ALL" | ReadingStatus | "FAVORITES" | "OWNED" | "MISSING";
-export type LibrarySort = "RECENT" | "TITLE" | "AUTHOR" | "PROGRESS";
+export type LibrarySort = "RECENT" | "TITLE" | "AUTHOR" | "PROGRESS" | "COVER";
 export type AuthorBookFilter = "ALL" | "MISSING" | "OWNED" | "READ" | "TO_READ";
 export type AuthorBookSort = "MISSING" | "TITLE" | "DATE";
 
@@ -48,6 +48,8 @@ export function authorInitial(author: string): string {
 }
 
 const byRecent = (a: LibraryBook, b: LibraryBook) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+/** Les livres avec jaquette d'abord ; à égalité, les plus récemment modifiés. */
+const byCover = (a: LibraryBook, b: LibraryBook) => Number(Boolean(b.coverUrl)) - Number(Boolean(a.coverUrl)) || byRecent(a, b);
 const byTitle = (a: { title: string }, b: { title: string }) => a.title.localeCompare(b.title, "fr");
 
 export function filterLibrary(library: LibraryBook[], filter: LibraryFilter, query: string): LibraryBook[] {
@@ -71,6 +73,7 @@ export function sortLibrary(books: LibraryBook[], sort: LibrarySort): LibraryBoo
     if (sort === "TITLE") return byTitle(a, b);
     if (sort === "AUTHOR") return canonicalAuthorSort(primaryAuthor(a)).localeCompare(canonicalAuthorSort(primaryAuthor(b)), "fr");
     if (sort === "PROGRESS") return progressPercent(b) - progressPercent(a);
+    if (sort === "COVER") return byCover(a, b);
     return byRecent(a, b);
   });
 }
@@ -102,6 +105,7 @@ export function groupByAuthor(books: LibraryBook[], sort: LibrarySort): AuthorGr
       anchor: `author-${normalizeText(group.author).replace(/\s+/g, "-") || "unknown"}`,
       books: [...group.books].sort((a, b) =>
         sort === "PROGRESS" ? progressPercent(b) - progressPercent(a) :
+        sort === "COVER" ? byCover(a, b) :
         sort === "RECENT" ? byRecent(a, b) : byTitle(a, b)),
       ownedCount: group.books.filter(book => book.owned).length
     }));

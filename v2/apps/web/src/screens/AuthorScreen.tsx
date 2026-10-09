@@ -8,7 +8,7 @@ import {
   type AuthorBookFilter, type AuthorBookSort
 } from "../lib/library-view";
 import { enrichLibraryBooks, refreshAuthor, unfollowAuthor } from "../services/authorLibrary";
-import { getFollowedAuthor, updateLibraryBook } from "../services/library";
+import { getFollowedAuthor, updateLibraryBook, updateLibraryBooks } from "../services/library";
 import { useLibrary } from "../state/LibraryProvider";
 import { useNavigation } from "../state/NavigationProvider";
 import { usePreferences } from "../state/PreferencesProvider";
@@ -55,6 +55,12 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
 
   async function quickPatch(id: string, changes: Parameters<typeof updateLibraryBook>[1]) {
     try { setLibrary(await updateLibraryBook(id, changes)); }
+    catch (x) { setError(x instanceof Error ? x.message : "Modification impossible."); }
+  }
+
+  async function markSeriesOwned(name: string, ids: string[]) {
+    if (!window.confirm(`Marquer ${ids.length} ${plural(ids.length, "livre")} de « ${name} » comme possédé${ids.length > 1 ? "s" : ""} ?`)) return;
+    try { setLibrary(await updateLibraryBooks(ids, { owned: true, newlyDiscovered: false })); }
     catch (x) { setError(x instanceof Error ? x.message : "Modification impossible."); }
   }
 
@@ -197,6 +203,10 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
       {(group.name || groups.length > 1) && <div className="series-heading">
         <h2>{group.name ?? "Hors série"}</h2>
         <span>{group.books.filter(book => book.owned).length} / {group.books.length}</span>
+        {group.name && group.books.some(book => !book.owned) &&
+          <button type="button" className="text-button" onClick={() => void markSeriesOwned(group.name!, group.books.filter(book => !book.owned).map(book => book.id))}>
+            Tout marquer comme possédé
+          </button>}
       </div>}
       <div className="author-book-list">{group.books.map(bookRow)}</div>
     </section>)}

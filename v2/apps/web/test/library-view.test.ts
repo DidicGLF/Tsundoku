@@ -38,6 +38,17 @@ describe("filterLibrary", () => {
   });
 });
 
+describe("sortLibrary COVER", () => {
+  it("puts books with a cover first, most recent first inside each part", () => {
+    const old = book({ title: "Ancien", coverUrl: "https://x/a.jpg", updatedAt: "2026-01-01T00:00:00Z" });
+    const recent = book({ title: "Récent", coverUrl: "https://x/b.jpg", updatedAt: "2026-03-01T00:00:00Z" });
+    const bare = book({ title: "Sans", updatedAt: "2026-04-01T00:00:00Z" });
+    expect(sortLibrary([bare, old, recent], "COVER").map(x => x.title)).toEqual(["Récent", "Ancien", "Sans"]);
+    const [group] = groupByAuthor([bare, old, recent], "COVER");
+    expect(group.books.map(x => x.title)).toEqual(["Récent", "Ancien", "Sans"]);
+  });
+});
+
 describe("sortLibrary", () => {
   it("sorts by recency, title and progress (unknown last)", () => {
     const a = book({ title: "B", updatedAt: "2026-03-01T00:00:00Z", progressValue: 10, progressTotal: 100 });

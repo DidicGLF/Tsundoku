@@ -29,6 +29,10 @@ export function useBookSearch() {
   /** Recherche terminée (même sans résultat) : sert à afficher « aucun résultat » et l'ajout manuel. */
   const [searched, setSearched] = useState<{ q: string; field: BookSearchField } | null>(null);
 
+  /** Recherche de jaquettes en arrière-plan en cours pour la recherche affichée. */
+  const [coversRunning, setCoversRunning] = useState(false);
+  const runningCovers = useRef(0);
+
   // Chaque recherche a un numéro : les réponses tardives d'une recherche abandonnée sont ignorées.
   const currentSearch = useRef(0);
 
@@ -38,12 +42,22 @@ export function useBookSearch() {
     const merge = (partial: BookSearchResult[]) => {
       if (searchId === currentSearch.current) setResults(current => mergeSearchResults([...current, ...partial]));
     };
-    void enrichSearchResults(found, language, merge).then(merge).catch(() => undefined);
+    runningCovers.current++;
+    setCoversRunning(true);
+    const finish = () => {
+      if (searchId !== currentSearch.current) return; // recherche abandonnée : son compteur a été remis à zéro
+      runningCovers.current = Math.max(0, runningCovers.current - 1);
+      if (runningCovers.current === 0) setCoversRunning(false);
+    };
+    void enrichSearchResults(found, language, merge).then(merge).catch(() => undefined).finally(finish);
   }, []);
+
+  const resetCovers = () => { runningCovers.current = 0; setCoversRunning(false); };
 
   const run = useCallback(async (language: BookSearchLanguage, showOthers: boolean) => {
     const searchId = ++currentSearch.current;
     const isCurrent = () => searchId === currentSearch.current;
+    resetCovers();
     setBusy(true);
     setError("");
     setNotice("");
@@ -78,6 +92,7 @@ export function useBookSearch() {
   /** Repart d'une recherche vierge : champ vide, résultats effacés, recherche en cours abandonnée. */
   const clear = useCallback(() => {
     currentSearch.current++;
+    resetCovers();
     setQ("");
     setResults([]);
     setOffset(0);
@@ -95,6 +110,7 @@ export function useBookSearch() {
   const runSimilar = useCallback(async (label: string, query: SimilarBooksQuery) => {
     const searchId = ++currentSearch.current;
     const isCurrent = () => searchId === currentSearch.current;
+    resetCovers();
     setBusy(true);
     setError("");
     setNotice("");
@@ -155,7 +171,7 @@ export function useBookSearch() {
   return {
     q, setQ, provider, setProvider, field, setField,
     results, canLoadMore, activeLanguage, showOtherLanguages, setShowOtherLanguages,
-    noPreferredResults, busy, error, notice, searched, similar,
+    noPreferredResults, busy, coversRunning, error, notice, searched, similar,
     submit, searchAllLanguages, loadMore, clear, runSimilar
   };
 }

@@ -1764,6 +1764,41 @@ select {
   font-size: 13px;
 }
 
+.series-heading {
+  gap: 10px;
+}
+
+.series-heading .text-button {
+  margin-left: auto;
+  font-size: 13px;
+}
+
+.author-open {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+}
+
+.author-avatar {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 52px;
+  border-radius: 9px;
+  object-fit: cover;
+  object-position: center top;
+  background: var(--surface-2);
+}
+
+.author-avatar.initials {
+  display: grid;
+  place-items: center;
+  background: var(--sidebar);
+  color: var(--accent-text);
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 600;
+}
+
 .round-toggle {
   width: 44px;
   height: 44px;

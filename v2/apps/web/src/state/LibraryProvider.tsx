@@ -1,4 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { scheduleLaunchCoverPass } from "../services/coverPass";
+import { usePreferences } from "./PreferencesProvider";
 import { initializeLibrary, type LibraryBook } from "../services/library";
 
 interface LibraryState {
@@ -28,6 +30,15 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     );
     return () => { active = false; };
   }, []);
+
+  // Une fois par lancement, quand la bibliothèque est prête : jaquettes manquantes, en arrière-plan.
+  const { preferredLanguage } = usePreferences();
+  const initialBooks = useRef<LibraryBook[] | null>(null);
+  if (dbState === "ready" && initialBooks.current === null) initialBooks.current = library;
+  useEffect(() => {
+    if (dbState !== "ready" || !initialBooks.current) return;
+    return scheduleLaunchCoverPass(initialBooks.current, preferredLanguage, setLibrary);
+  }, [dbState, preferredLanguage]);
 
   const value = useMemo(() => ({ library, setLibrary, dbState, dbError }), [library, dbState, dbError]);
   return <LibraryContext.Provider value={value}>{children}</LibraryContext.Provider>;

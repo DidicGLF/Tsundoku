@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { canonicalAuthorIdentity } from "@tsundoku/book-sources";
+import { AuthorAvatar } from "../components/AuthorAvatar";
 import { LibraryTile } from "../components/BookCards";
 import { filterLibrary, groupByAuthor, libraryFilterCounts, plural, sortLibrary, type LibrarySort } from "../lib/library-view";
 import type { LibraryFilters } from "../hooks/useLibraryFilters";
@@ -27,6 +28,7 @@ export function LibraryScreen({ filters }: { filters: LibraryFilters }) {
           <option value="TITLE">Titre</option>
           <option value="AUTHOR">Auteur</option>
           <option value="PROGRESS">Progression</option>
+          <option value="COVER">Jaquette d'abord</option>
         </select>
       </div>
       <div className="filter-row">
@@ -60,7 +62,8 @@ export function LibraryScreen({ filters }: { filters: LibraryFilters }) {
             <div className="author-heading">
               <button type="button" className="author-open"
                 onClick={() => nav.push({ name: "author", key: canonicalAuthorIdentity(group.author), authorName: group.author })}>
-                <p className="eyebrow">Auteur</p><h2>{group.author}</h2>
+                <AuthorAvatar name={group.author} />
+                <span><p className="eyebrow">Auteur</p><h2>{group.author}</h2></span>
               </button>
               <div className="author-count">
                 <strong>{group.ownedCount}/{group.books.length}</strong>

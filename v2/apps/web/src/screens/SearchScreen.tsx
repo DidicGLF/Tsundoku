@@ -110,6 +110,8 @@ export function SearchScreen({ search }: { search: BookSearch }) {
       {missingCovers} résultats sans jaquette. Une clé Google Books gratuite en retrouve beaucoup plus, surtout en français.{" "}
       <button type="button" className="text-button" onClick={() => nav.reset({ name: "settings" })}>Ouvrir les paramètres</button>
     </p>}
+    {search.coversRunning && !isAuthorSearch && visible.length > 0 &&
+      <p className="cover-status running" role="status">Recherche des jaquettes… {visible.length - missingCovers} / {visible.length}</p>}
     {search.noPreferredResults && <section className="search-fallback"><p>Aucun résultat dans la langue préférée.</p><button type="button" onClick={() => void search.searchAllLanguages()}>Afficher toutes les langues</button></section>}
 
     {noResults && <section className="no-results">
