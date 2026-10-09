@@ -58,8 +58,8 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
     catch (x) { setError(x instanceof Error ? x.message : "Modification impossible."); }
   }
 
-  async function markSeriesOwned(name: string, ids: string[]) {
-    if (!window.confirm(`Marquer ${ids.length} ${plural(ids.length, "livre")} de « ${name} » comme possédé${ids.length > 1 ? "s" : ""} ?`)) return;
+  async function markOwned(label: string, ids: string[]) {
+    if (!ids.length || !window.confirm(`Marquer ${ids.length} ${plural(ids.length, "livre")} de ${label} comme possédé${ids.length > 1 ? "s" : ""} ?`)) return;
     try { setLibrary(await updateLibraryBooks(ids, { owned: true, newlyDiscovered: false })); }
     catch (x) { setError(x instanceof Error ? x.message : "Modification impossible."); }
   }
@@ -135,6 +135,9 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
           </button>
           {menuOpen && <div className="menu" role="menu">
+            {stats.missing > 0 && <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); void markOwned(authorName || "cet auteur", books.filter(book => !book.owned).map(book => book.id)); }}>
+              Tout marquer comme possédé ({stats.missing})
+            </button>}
             <button type="button" role="menuitem" className="menu-danger" disabled={deleteBusy} onClick={() => { setMenuOpen(false); void remove(); }}>
               {deleteBusy ? "Suppression…" : "Supprimer l’auteur et ses livres"}
             </button>
@@ -204,7 +207,7 @@ export function AuthorScreen({ authorKey, authorName }: { authorKey: string; aut
         <h2>{group.name ?? "Hors série"}</h2>
         <span>{group.books.filter(book => book.owned).length} / {group.books.length}</span>
         {group.name && group.books.some(book => !book.owned) &&
-          <button type="button" className="text-button" onClick={() => void markSeriesOwned(group.name!, group.books.filter(book => !book.owned).map(book => book.id))}>
+          <button type="button" className="text-button" onClick={() => void markOwned(`« ${group.name} »`, group.books.filter(book => !book.owned).map(book => book.id))}>
             Tout marquer comme possédé
           </button>}
       </div>}
