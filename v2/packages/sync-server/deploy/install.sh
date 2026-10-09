@@ -47,6 +47,7 @@ cp -r "$here/dist" "$here/package.json" "$app_dir/"
 (cd "$app_dir" && npm install --omit=dev --no-audit --no-fund --silent)
 chown -R tsundoku:tsundoku "$app_dir"
 
+install -m 755 "$here/deploy/stats.sh" /usr/local/bin/tsundoku-stats
 cp "$here/deploy/tsundoku-sync.service" /etc/systemd/system/tsundoku-sync.service
 systemctl daemon-reload
 systemctl enable --now tsundoku-sync

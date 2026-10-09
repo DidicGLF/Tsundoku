@@ -66,4 +66,5 @@ Le serveur ne garde que la clé chiffrée par ce code (table `pairings`), jamais
   Il suffit alors d'en effacer la trace si besoin : `su postgres -c "psql tsundoku"` puis `SELECT user_id, created_at, last_seen FROM users;`.
 - Les données hébergées sont des données personnelles de tiers (leur liste de lecture) : n'en fais rien d'autre que
   la synchronisation, et préviens-les de ce que le serveur stocke (l'application l'indique avant l'activation).
+- **Suivi des utilisateurs** : `tsundoku-stats` (en root, dans le conteneur) affiche le nombre d'inscrits, les nouveaux et les actifs sur 24 h / 7 j / 30 j, le nombre de livres synchronisés et la taille de la base. Rien de nominatif : le serveur ne connaît que l'empreinte des clés. La dernière activité est mise à jour à chaque envoi, et au plus une fois par heure pour un appareil qui ne fait que lire.
 - Journaux : `journalctl -u tsundoku-sync -f`.

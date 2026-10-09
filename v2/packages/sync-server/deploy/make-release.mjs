@@ -13,6 +13,7 @@ rmSync(out, { recursive: true, force: true });
 mkdirSync(join(stage, "deploy"), { recursive: true });
 cpSync(join(root, "dist"), join(stage, "dist"), { recursive: true });
 cpSync(join(root, "deploy", "install.sh"), join(stage, "deploy", "install.sh"));
+cpSync(join(root, "deploy", "stats.sh"), join(stage, "deploy", "stats.sh"));
 cpSync(join(root, "deploy", "tsundoku-sync.service"), join(stage, "deploy", "tsundoku-sync.service"));
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 writeFileSync(join(stage, "package.json"), JSON.stringify({ name: pkg.name, version: pkg.version, type: "module", dependencies: pkg.dependencies }, null, 2) + "\n");

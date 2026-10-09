@@ -251,6 +251,8 @@ export function createApp(pool: Pool, limits: Limits = DEFAULT_LIMITS): Server {
         const since = Number(url.searchParams.get("since") ?? 0);
         const limit = Number(url.searchParams.get("limit") ?? 500);
         if (!Number.isFinite(since) || since < 0 || !Number.isFinite(limit)) throw new HttpError(400, "Paramètres invalides.");
+        // Un appareil qui ne fait que lire est aussi un utilisateur actif : la date de dernière activité est mise à jour au plus une fois par heure.
+        await pool.query("UPDATE users SET last_seen = now() WHERE user_id = $1 AND last_seen < now() - interval '1 hour'", [userId]);
         return send(response, 200, await pull(pool, userId, since, limit));
       }
       if (request.method === "PUT" && url.pathname.startsWith("/v1/pair/")) {
