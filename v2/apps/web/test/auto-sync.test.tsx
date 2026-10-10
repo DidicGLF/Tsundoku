@@ -57,6 +57,28 @@ describe("useAutoSync", () => {
     expect(runSync).toHaveBeenCalledTimes(1);
   });
 
+  it("sends a deletion a few seconds later even though no remaining book changed", async () => {
+    const both = [book("a", "2026-01-01T00:00:00.000Z"), book("b", "2026-01-01T00:00:00.000Z")];
+    await render({ ready: true, library: both, setLibrary: noop });
+    await advance(15_000);
+    runSync.mockClear();
+    await render({ ready: true, library: [both[0]], setLibrary: noop });
+    await advance(5_000);
+    expect(runSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not resync because of books removed by the sync itself", async () => {
+    runSync.mockResolvedValueOnce([book("a", "2026-01-01T00:00:00.000Z")]);
+    let current: never[] = [book("a", "2026-01-01T00:00:00.000Z"), book("b", "2026-01-01T00:00:00.000Z")];
+    const setLibrary = (next: never[]) => { current = next; };
+    await render({ ready: true, library: current, setLibrary });
+    await advance(0);
+    await render({ ready: true, library: current, setLibrary });
+    runSync.mockClear();
+    await advance(8_000);
+    expect(runSync).not.toHaveBeenCalled();
+  });
+
   it("does not resync because of what the sync itself brought in", async () => {
     runSync.mockResolvedValueOnce([book("a", "2026-02-01T00:00:00.000Z")]);
     let current: never[] = [];

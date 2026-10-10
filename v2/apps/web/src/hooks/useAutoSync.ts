@@ -18,6 +18,8 @@ export function useAutoSync(ready: boolean, library: LibraryBook[], setLibrary: 
   const lastRun = useRef(0);
   /** Dernière modification connue au moment de la dernière synchronisation : sert à repérer les modifications locales. */
   const syncedUpTo = useRef("");
+  /** Nombre de fiches à la dernière synchronisation : une suppression ne change aucune date, seulement ce nombre. */
+  const syncedCount = useRef<number | null>(null);
   const changeTimer = useRef<number | undefined>(undefined);
   const syncRef = useRef<(force?: boolean) => void>(() => undefined);
 
@@ -29,6 +31,7 @@ export function useAutoSync(ready: boolean, library: LibraryBook[], setLibrary: 
       void runSync().then(updated => {
         if (!updated) return;
         syncedUpTo.current = latestUpdate(updated);
+        syncedCount.current = updated.length;
         setLibrary(updated);
       });
     };
@@ -46,12 +49,14 @@ export function useAutoSync(ready: boolean, library: LibraryBook[], setLibrary: 
     };
   }, [ready, setLibrary]);
 
-  // Une fiche plus récente que la dernière synchronisation = modification locale : envoi différé.
+  // Une fiche plus récente que la dernière synchronisation, ou des fiches en moins = modification locale : envoi différé.
   useEffect(() => {
     if (!ready) return;
     const latest = latestUpdate(library);
+    if (syncedCount.current === null) syncedCount.current = library.length;
     if (!syncedUpTo.current) { syncedUpTo.current = latest; return; }
-    if (latest <= syncedUpTo.current) return;
+    const deletedLocally = library.length < syncedCount.current;
+    if (latest <= syncedUpTo.current && !deletedLocally) return;
     window.clearTimeout(changeTimer.current);
     changeTimer.current = window.setTimeout(() => syncRef.current(true), CHANGE_DELAY);
     return () => window.clearTimeout(changeTimer.current);
