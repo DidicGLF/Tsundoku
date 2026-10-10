@@ -102,7 +102,7 @@ synchronisation » génère une clé secrète aléatoire (stockage sécurisé) q
 garde que son empreinte, pas de compte ni d'e-mail. Un autre appareil rejoint la même bibliothèque avec un **code de liaison** court
 (8 caractères, valable 5 minutes, à usage unique) tapé sur le nouvel appareil, ou en scannant le QR code de la clé. Le code
 sert à chiffrer la clé (PBKDF2 + AES-GCM) avant son dépôt sur le serveur, qui ne voit donc jamais la clé. Unité échangée : la fiche de bibliothèque entière ; la version modifiée en dernier
-gagne, les suppressions se propagent. L'utilisateur peut tout effacer du serveur depuis l'app.
+gagne, les suppressions se propagent. L'utilisateur peut tout effacer du serveur depuis l'app. Le serveur conserve une suppression sous forme de fiche marquée « supprimée » (pour que les autres appareils l'apprennent) et l'efface définitivement au bout de **90 jours** (ménage quotidien, `purgeDeleted` dans `packages/sync-server/src/app.ts`) ; un appareil resté éteint plus longtemps pourrait donc faire réapparaître un livre supprimé entre-temps.
 Les secrets (clé Google, clé de synchronisation) ne sont jamais synchronisés.
 
 L'adresse du serveur est intégrée au build : `apps/web/.env` avec `VITE_SYNC_URL=https://…` (sans elle,

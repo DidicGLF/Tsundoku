@@ -161,6 +161,21 @@ export async function deleteAccount(pool: Pool, userId: string): Promise<void> {
   await pool.query("DELETE FROM users WHERE user_id = $1", [userId]);
 }
 
+/** Délai au-delà duquel une suppression n'a plus besoin d'être propagée : plus aucun appareil raisonnable ne l'ignore. */
+export const DELETED_RETENTION_DAYS = 90;
+
+/**
+ * Efface définitivement les fiches (et auteurs suivis) supprimées depuis plus de `days` jours.
+ * Les dates sont des chaînes ISO en UTC : la comparaison de texte suffit et ne peut pas échouer sur une valeur douteuse.
+ * Un appareil resté éteint plus longtemps que ce délai pourrait renvoyer un livre supprimé entre-temps.
+ */
+export async function purgeDeleted(pool: Pool, days = DELETED_RETENTION_DAYS, now = new Date()): Promise<{ entries: number; followed: number }> {
+  const cutoff = new Date(now.getTime() - days * 86_400_000).toISOString();
+  const entries = await pool.query("DELETE FROM entries WHERE doc->>'deletedAt' < $1", [cutoff]);
+  const followed = await pool.query("DELETE FROM followed WHERE doc->>'deletedAt' < $1", [cutoff]);
+  return { entries: entries.rowCount ?? 0, followed: followed.rowCount ?? 0 };
+}
+
 export async function pull(pool: Pool, userId: string, since: number, limit: number) {
   const size = Math.min(Math.max(1, limit), MAX_PULL);
   const { rows } = await pool.query<{ kind: "e" | "f"; doc: unknown; seq: string }>(

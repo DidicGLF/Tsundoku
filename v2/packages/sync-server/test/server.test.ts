@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { claimPairing, createHttpTransport, runMigrations, SqliteLibraryRepository, syncOnce, SyncServerError } from "../../database/src/index";
 import { runSyncFuzz } from "../../../apps/web/test/helpers/sync-fuzz";
 import { generatePairingCode, openKey, pairingIdOf, sealKey } from "../../../apps/web/src/lib/pairing";
-import { createApp, DEFAULT_LIMITS, prepareDatabase, type Limits } from "../src/app";
+import { createApp, DEFAULT_LIMITS, prepareDatabase, purgeDeleted, type Limits } from "../src/app";
 import { createTestAdapter } from "../../database/test/sqljs-adapter";
 
 /*
@@ -74,6 +74,30 @@ describe.skipIf(!databaseUrl)("serveur de synchronisation (PostgreSQL réel)", (
     const page = await transport.pull(0, 100);
     expect(page.entries).toHaveLength(1);
     expect((page.entries[0] as unknown as { rating: number }).rating).toBe(5);
+  });
+
+  it("purges deletions older than 90 days and nothing else", async () => {
+    const transport = createHttpTransport(baseUrl, KEY);
+    const now = new Date("2026-10-10T12:00:00.000Z");
+    const entry = (id: string, extra: object = {}) => ({ id, updatedAt: "2026-01-01T00:00:00.000Z", ...extra });
+    await transport.push({
+      entries: [
+        entry("live-old"),
+        entry("deleted-old", { deletedAt: "2026-06-01T00:00:00.000Z" }),
+        entry("deleted-89-days", { deletedAt: "2026-07-13T12:00:00.000Z" }),
+        entry("deleted-recent", { deletedAt: "2026-10-09T00:00:00.000Z" }),
+        entry("deleted-odd", { deletedAt: "pas une date" })
+      ] as never,
+      followed: [
+        { authorKey: "old", name: "Ancien", updatedAt: "2026-01-01T00:00:00.000Z", deletedAt: "2026-06-01T00:00:00.000Z" },
+        { authorKey: "live", name: "Vivant", updatedAt: "2026-01-01T00:00:00.000Z" }
+      ] as never
+    });
+    expect(await purgeDeleted(pool, 90, now)).toEqual({ entries: 1, followed: 1 });
+    const page = await transport.pull(0, 100);
+    expect(page.entries.map(item => item.id).sort()).toEqual(["deleted-89-days", "deleted-odd", "deleted-recent", "live-old"]);
+    expect(page.followed.map(item => item.authorKey)).toEqual(["live"]);
+    expect(await purgeDeleted(pool, 90, now)).toEqual({ entries: 0, followed: 0 });
   });
 
   it("synchronises two devices end to end", async () => {
